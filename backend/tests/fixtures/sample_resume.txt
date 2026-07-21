@@ -1,0 +1,26 @@
+Vivek Sharma
+CS Undergraduate — Full-stack & Data Engineering
+vivek@example.com | github.com/vivek
+
+PROJECTS
+Fleet Operations Dashboard (2025-2026)
+Built a realtime fleet management dashboard in React with Firestore listeners,
+serving 6 transport clients. Cut ops response time from 40 minutes to 5 minutes
+by replacing daily spreadsheet exports with live vehicle status views.
+
+WhatsApp Document Extraction Pipeline (2025)
+Python/FastAPI backend that ingests WhatsApp export zips, runs Gemini-based OCR
+on vehicle documents, and writes structured records to Firestore. Processes
+~2,000 pages/month across 4 client pipelines.
+
+EXPERIENCE
+Backend Intern, Optera (2025-present)
+Own the FastAPI extraction backend end to end: deployment on GCP under PM2,
+Cloudflare R2 object storage, Telegram alerting. Reduced per-page extraction
+cost by benchmarking four OCR engines and introducing tiered routing.
+
+SKILLS
+Python, FastAPI, React, JavaScript, Firestore, GCP, SQL, Git, Docker basics
+
+EDUCATION
+B.Tech Computer Science, expected 2027. CGPA 8.6/10.
