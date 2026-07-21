@@ -6,6 +6,7 @@ from .company import (
     PageManifestEntry,
     ProfileTier,
 )
+from .email import ClaimCheck, EmailDraft, Verdict, VerifierLLM, VerifierReport
 from .matching import Overlap, OverlapKind, RankedOverlaps
 from .plan import Bridge, EmailPlan, Tone
 
@@ -25,4 +26,9 @@ __all__ = [
     "Bridge",
     "EmailPlan",
     "Tone",
+    "ClaimCheck",
+    "EmailDraft",
+    "Verdict",
+    "VerifierLLM",
+    "VerifierReport",
 ]

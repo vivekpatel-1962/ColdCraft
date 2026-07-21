@@ -157,3 +157,64 @@ def save_plan(run_id: int, plan_json: str) -> None:
             "UPDATE runs SET plan_json = ?, status = 'planned' WHERE id = ?",
             (plan_json, run_id),
         )
+
+
+def get_candidate_profile_by_id(profile_id: int) -> sqlite3.Row | None:
+    with get_conn() as conn:
+        return conn.execute(
+            "SELECT * FROM candidate_profiles WHERE id = ?", (profile_id,)
+        ).fetchone()
+
+
+def get_company_profile_by_id(profile_id: int) -> sqlite3.Row | None:
+    with get_conn() as conn:
+        return conn.execute(
+            "SELECT * FROM company_profiles WHERE id = ?", (profile_id,)
+        ).fetchone()
+
+
+def get_latest_planned_run(domain: str) -> sqlite3.Row | None:
+    """Most recent run for a company domain that has a saved plan."""
+    with get_conn() as conn:
+        return conn.execute(
+            "SELECT r.* FROM runs r "
+            "JOIN company_profiles cp ON cp.id = r.company_profile_id "
+            "JOIN companies c ON c.id = cp.company_id "
+            "WHERE c.domain = ? AND r.plan_json IS NOT NULL "
+            "ORDER BY r.id DESC LIMIT 1",
+            (domain,),
+        ).fetchone()
+
+
+def save_draft(run_id: int, draft_json: str, subject: str, body: str, opening_line: str) -> int:
+    """Store the writer's draft on the run and as an emails row (generated_body)."""
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE runs SET draft_json = ?, status = 'drafted' WHERE id = ?",
+            (draft_json, run_id),
+        )
+        cur = conn.execute(
+            "INSERT INTO emails (run_id, subject, generated_body, opening_line, status) "
+            "VALUES (?, ?, ?, ?, 'draft')",
+            (run_id, subject, body, opening_line),
+        )
+        return cur.lastrowid
+
+
+def save_verifier(run_id: int, verifier_json: str) -> None:
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE runs SET verifier_json = ?, status = 'verified' WHERE id = ?",
+            (verifier_json, run_id),
+        )
+
+
+def get_recent_opening_lines(limit: int = 50) -> list[str]:
+    """Past email openers, for the verifier's cross-email repetition check."""
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT opening_line FROM emails WHERE opening_line IS NOT NULL "
+            "ORDER BY id DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
+        return [r["opening_line"] for r in rows]
