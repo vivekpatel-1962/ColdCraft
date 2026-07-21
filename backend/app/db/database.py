@@ -94,3 +94,38 @@ def get_active_candidate_profile() -> sqlite3.Row | None:
         return conn.execute(
             "SELECT * FROM candidate_profiles WHERE is_active = 1 ORDER BY id DESC LIMIT 1"
         ).fetchone()
+
+
+def upsert_company(domain: str, name: str | None) -> int:
+    """Insert the company if new, else keep it; returns its id. Name is filled in
+    on first sight and never blanked by a later scrape that lacked one."""
+    with get_conn() as conn:
+        conn.execute(
+            "INSERT INTO companies (domain, name) VALUES (?, ?) "
+            "ON CONFLICT(domain) DO UPDATE SET name = COALESCE(excluded.name, companies.name)",
+            (domain, name),
+        )
+        row = conn.execute("SELECT id FROM companies WHERE domain = ?", (domain,)).fetchone()
+        return row["id"]
+
+
+def save_company_profile(
+    company_id: int, profile_json: str, profile_tier: str, page_manifest_json: str
+) -> int:
+    with get_conn() as conn:
+        cur = conn.execute(
+            "INSERT INTO company_profiles "
+            "(company_id, profile_json, profile_tier, page_manifest_json) VALUES (?, ?, ?, ?)",
+            (company_id, profile_json, profile_tier, page_manifest_json),
+        )
+        return cur.lastrowid
+
+
+def get_latest_company_profile(domain: str) -> sqlite3.Row | None:
+    with get_conn() as conn:
+        return conn.execute(
+            "SELECT cp.* FROM company_profiles cp "
+            "JOIN companies c ON c.id = cp.company_id "
+            "WHERE c.domain = ? ORDER BY cp.id DESC LIMIT 1",
+            (domain,),
+        ).fetchone()
