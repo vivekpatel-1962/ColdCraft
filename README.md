@@ -65,13 +65,27 @@ Matches the active candidate profile against the company facts ledger
 plans one email (single angle, 2-3 bridges, tone, banned phrases, and the claims
 deliberately excluded). Saves the run to the `runs` table for the writer stage.
 
+## Usage (increment 4 — write + verify)
+
+```
+cd backend
+python -m scripts.write_email company.com        # uses the latest planned run
+```
+
+Closed-world writer drafts the email seeing only the plan + the claims/facts its
+bridges reference (grounding by construction), then the verifier audits it against
+the full ledgers: every factual sentence must trace to a claim/fact ID, plus
+deterministic checks for length (90-140 words), banned phrases, and opener
+repetition. Prints the draft + a PASS / REVISE / FAIL verdict.
+
 ## Status
 
 - [x] Increment 1: skeleton, IR models, LLM adapter, resume analyzer + CLI
 - [x] Increment 2: company intelligence — priority scraper (httpx+trafilatura, Jina fallback) + facts ledger
 - [x] Increment 3: matcher (deterministic overlap + LLM rubric) + planner (one-angle EmailPlan)
-- [ ] Increment 4: writer + verifier
+- [x] Increment 4: writer (closed-world) + verifier (grounding, style, length, repetition)
 - [ ] Increment 5: FastAPI routes + React frontend (profile editor, draft review)
 
-Live-verified end-to-end (real resume × sarvam.ai): resume→claims, company→facts,
-match→78/100 fit, plan→one focused angle. Multi-key Gemini rotation is active.
+The full 6-stage pipeline runs end-to-end. Live-verified (real resume × sarvam.ai):
+resume→claims, company→facts, match→78/100 fit, plan→one angle, write→102-word
+grounded email, verify→PASS. Multi-key Gemini rotation is active.
