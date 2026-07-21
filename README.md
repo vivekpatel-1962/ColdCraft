@@ -53,10 +53,25 @@ product > homepage > github); JS-rendered pages fall back to Jina Reader.
 `--scrape-only` prints the page manifest + tier without calling the LLM.
 Builds a CompanyProfile facts ledger (each fact carries its source URL + quote).
 
+## Usage (increment 3 — match + plan)
+
+```
+cd backend
+python -m scripts.plan_email company.com          # active resume x stored company profile
+```
+
+Matches the active candidate profile against the company facts ledger
+(deterministic skill overlap + LLM rubric → fit score + ranked bridges), then
+plans one email (single angle, 2-3 bridges, tone, banned phrases, and the claims
+deliberately excluded). Saves the run to the `runs` table for the writer stage.
+
 ## Status
 
 - [x] Increment 1: skeleton, IR models, LLM adapter, resume analyzer + CLI
-- [x] Increment 2: company intelligence — priority scraper (httpx+trafilatura, Jina fallback) + facts ledger *(scrape phase verified; summarize step pending API key)*
-- [ ] Increment 3: matcher + planner
+- [x] Increment 2: company intelligence — priority scraper (httpx+trafilatura, Jina fallback) + facts ledger
+- [x] Increment 3: matcher (deterministic overlap + LLM rubric) + planner (one-angle EmailPlan)
 - [ ] Increment 4: writer + verifier
 - [ ] Increment 5: FastAPI routes + React frontend (profile editor, draft review)
+
+Live-verified end-to-end (real resume × sarvam.ai): resume→claims, company→facts,
+match→78/100 fit, plan→one focused angle. Multi-key Gemini rotation is active.
