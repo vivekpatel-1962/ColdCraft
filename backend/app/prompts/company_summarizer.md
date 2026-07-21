@@ -22,5 +22,10 @@ Rules:
 - `hiring_signals`: specific roles or teams they are visibly hiring for, if present.
 - `one_liner`: one neutral sentence describing what the company does. No adjectives,
   no flattery, no superlatives.
-- Do NOT invent facts to fill categories. A short, fully-grounded ledger beats a long,
-  padded one. It is fine to return few facts if the pages were thin.
+- Be thorough: extract EVERY distinct grounded fact the pages support. For a
+  content-rich company (multiple substantial pages) aim for 8-15 facts spanning
+  several categories; return fewer only when the pages genuinely lack content.
+  Do not stop at the first few — a recruiter-facing email needs specific hooks.
+- Never invent or pad to hit a count. A short, fully-grounded ledger still beats a
+  long one with a single unsupported fact. Grounding is the hard constraint; the
+  8-15 target is only guidance for how hard to look.

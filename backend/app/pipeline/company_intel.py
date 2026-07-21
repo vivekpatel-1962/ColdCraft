@@ -25,6 +25,10 @@ log = logging.getLogger("coldmail.company")
 PROMPT_PATH = Path(__file__).resolve().parent.parent / "prompts" / "company_summarizer.md"
 
 MAX_PAGES = 12
+# Cap each page's contribution to the distil prompt so one long post (a 50k-char
+# eng blog) can't crowd out the other pages' facts. Key facts front-load, so the
+# head of the page is what we keep. Tier calc still uses the full char counts.
+PER_PAGE_CHAR_CAP = 8000
 # Tier thresholds — how much content counts as a confident ("rich") profile.
 RICH_MIN_OK_PAGES = 3
 RICH_MIN_CHARS = 3000
@@ -115,11 +119,16 @@ def scrape_company(homepage_url: str, job_posting_url: str | None = None) -> Scr
 
 def _combined_text(scrape: ScrapeResult) -> str:
     """Concatenate scraped pages, each tagged with its source URL so the LLM can
-    attribute every fact back to the page it came from."""
+    attribute every fact back to the page it came from. Each page is capped at
+    PER_PAGE_CHAR_CAP for balanced coverage across pages."""
     blocks = []
     for fetched, bucket in scrape.pages:
-        if fetched.text:
-            blocks.append(f"### SOURCE [{bucket}]: {fetched.url}\n{fetched.text}")
+        if not fetched.text:
+            continue
+        text = fetched.text
+        if len(text) > PER_PAGE_CHAR_CAP:
+            text = text[:PER_PAGE_CHAR_CAP] + "\n[...truncated...]"
+        blocks.append(f"### SOURCE [{bucket}]: {fetched.url}\n{text}")
     return "\n\n".join(blocks)
 
 
