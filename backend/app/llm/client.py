@@ -41,14 +41,15 @@ def _gemini_model_for(stage: str) -> str:
     return config.GEMINI_MODEL_EXTRACTION
 
 
-def _call_gemini(stage: str, system: str, user: str, schema: type[T]) -> T:
+def _call_gemini_with_key(
+    api_key: str, stage: str, system: str, user: str, schema: type[T]
+) -> T:
+    """One key's attempt at a stage, with the schema-validation retry. Quota (429)
+    errors propagate up so the key rotator can move to the next key."""
     from google import genai
     from google.genai import types as gtypes
 
-    if not config.GEMINI_API_KEY:
-        raise LLMError("GEMINI_API_KEY is not set - copy .env.example to .env and add your key")
-
-    client = genai.Client(api_key=config.GEMINI_API_KEY)
+    client = genai.Client(api_key=api_key)
     model = _gemini_model_for(stage)
 
     def once(extra_user: str = "") -> T:
@@ -75,6 +76,40 @@ def _call_gemini(stage: str, system: str, user: str, schema: type[T]) -> T:
             "\n\nYour previous response failed schema validation with this error, "
             f"fix it and return only valid JSON:\n{e}"
         )
+
+
+def _call_gemini(stage: str, system: str, user: str, schema: type[T]) -> T:
+    """Try the configured Gemini keys in rotation. Uses the last known-good key
+    first; on a per-key quota (429) it rotates to the next. Raises the quota error
+    only when EVERY key is exhausted, so complete_json() then applies stage policy."""
+    from . import keyring
+
+    keys = config.GEMINI_API_KEYS
+    if not keys:
+        raise LLMError(
+            "No Gemini key configured - copy .env.example to .env and set "
+            "GEMINI_API_KEYS (comma-separated) or GEMINI_API_KEY"
+        )
+
+    order = keyring.rotation_order(len(keys))
+    last_quota_error: Exception | None = None
+    for i in order:
+        try:
+            result = _call_gemini_with_key(keys[i], stage, system, user, schema)
+            keyring.remember(i)
+            log.info("stage=%s provider=gemini key=#%d model=%s ok", stage, i, _gemini_model_for(stage))
+            return result
+        except Exception as e:
+            if not _is_quota_error(e):
+                raise
+            last_quota_error = e
+            log.warning("stage=%s gemini key #%d quota-exhausted, rotating (%d keys total)",
+                        stage, i, len(keys))
+            continue
+
+    # Every key is out of quota — re-raise so complete_json applies the stage policy.
+    assert last_quota_error is not None
+    raise last_quota_error
 
 
 def _call_fallback(stage: str, system: str, user: str, schema: type[T]) -> T:
@@ -124,9 +159,7 @@ def complete_json(stage: str, system: str, user: str, schema: type[T]) -> T:
     Raises QuotaExhausted when quota is gone and the stage must not degrade.
     """
     try:
-        result = _call_gemini(stage, system, user, schema)
-        log.info("stage=%s provider=gemini model=%s ok", stage, _gemini_model_for(stage))
-        return result
+        return _call_gemini(stage, system, user, schema)  # logs its own success (with key index)
     except Exception as e:
         if not _is_quota_error(e):
             raise

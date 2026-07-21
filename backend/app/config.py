@@ -7,7 +7,21 @@ import os
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BACKEND_DIR / ".env")
 
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+def _parse_keys() -> list[str]:
+    """Accept either GEMINI_API_KEYS (comma/newline-separated, for rotation) or a
+    single GEMINI_API_KEY. Returns keys in order, deduped, blanks dropped."""
+    raw = os.getenv("GEMINI_API_KEYS", "") or os.getenv("GEMINI_API_KEY", "")
+    keys, seen = [], set()
+    for k in raw.replace("\n", ",").split(","):
+        k = k.strip()
+        if k and k not in seen:
+            seen.add(k)
+            keys.append(k)
+    return keys
+
+
+GEMINI_API_KEYS = _parse_keys()
+GEMINI_API_KEY = GEMINI_API_KEYS[0] if GEMINI_API_KEYS else ""  # back-compat / single-key callers
 GEMINI_MODEL_JUDGMENT = os.getenv("GEMINI_MODEL_JUDGMENT", "gemini-flash-latest")
 GEMINI_MODEL_EXTRACTION = os.getenv("GEMINI_MODEL_EXTRACTION", "gemini-flash-lite-latest")
 
