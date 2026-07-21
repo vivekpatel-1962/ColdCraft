@@ -129,3 +129,31 @@ def get_latest_company_profile(domain: str) -> sqlite3.Row | None:
             "WHERE c.domain = ? ORDER BY cp.id DESC LIMIT 1",
             (domain,),
         ).fetchone()
+
+
+def create_run(
+    candidate_profile_id: int, company_profile_id: int, job_posting_url: str | None = None
+) -> int:
+    with get_conn() as conn:
+        cur = conn.execute(
+            "INSERT INTO runs (candidate_profile_id, company_profile_id, job_posting_url) "
+            "VALUES (?, ?, ?)",
+            (candidate_profile_id, company_profile_id, job_posting_url),
+        )
+        return cur.lastrowid
+
+
+def save_overlaps(run_id: int, overlaps_json: str) -> None:
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE runs SET overlaps_json = ?, status = 'matched' WHERE id = ?",
+            (overlaps_json, run_id),
+        )
+
+
+def save_plan(run_id: int, plan_json: str) -> None:
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE runs SET plan_json = ?, status = 'planned' WHERE id = ?",
+            (plan_json, run_id),
+        )

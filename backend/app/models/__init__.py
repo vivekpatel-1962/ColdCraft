@@ -6,6 +6,8 @@ from .company import (
     PageManifestEntry,
     ProfileTier,
 )
+from .matching import Overlap, OverlapKind, RankedOverlaps
+from .plan import Bridge, EmailPlan, Tone
 
 __all__ = [
     "CandidateProfile",
@@ -17,4 +19,10 @@ __all__ = [
     "FactCategory",
     "PageManifestEntry",
     "ProfileTier",
+    "Overlap",
+    "OverlapKind",
+    "RankedOverlaps",
+    "Bridge",
+    "EmailPlan",
+    "Tone",
 ]
