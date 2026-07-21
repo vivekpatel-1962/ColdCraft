@@ -40,10 +40,23 @@ Extracts a CandidateProfile (claims ledger) and stores it in SQLite.
 Review/edit the profile before generating emails — the profile is the trusted
 source of truth; the PDF is never re-parsed.
 
+## Usage (increment 2 — company intelligence)
+
+```
+cd backend
+python -m scripts.analyze_company https://company.com --job https://company.com/jobs/123
+python -m scripts.analyze_company https://company.com --scrape-only   # no API key needed
+```
+
+Priority-scrapes up to 12 pages (job posting > careers > about > eng blog >
+product > homepage > github); JS-rendered pages fall back to Jina Reader.
+`--scrape-only` prints the page manifest + tier without calling the LLM.
+Builds a CompanyProfile facts ledger (each fact carries its source URL + quote).
+
 ## Status
 
 - [x] Increment 1: skeleton, IR models, LLM adapter, resume analyzer + CLI
-- [ ] Increment 2: company intelligence (scrape + summarize)
+- [x] Increment 2: company intelligence — priority scraper (httpx+trafilatura, Jina fallback) + facts ledger *(scrape phase verified; summarize step pending API key)*
 - [ ] Increment 3: matcher + planner
 - [ ] Increment 4: writer + verifier
 - [ ] Increment 5: FastAPI routes + React frontend (profile editor, draft review)
