@@ -84,8 +84,22 @@ repetition. Prints the draft + a PASS / REVISE / FAIL verdict.
 - [x] Increment 2: company intelligence — priority scraper (httpx+trafilatura, Jina fallback) + facts ledger
 - [x] Increment 3: matcher (deterministic overlap + LLM rubric) + planner (one-angle EmailPlan)
 - [x] Increment 4: writer (closed-world) + verifier (grounding, style, length, repetition)
-- [ ] Increment 5: FastAPI routes + React frontend (profile editor, draft review)
+- [x] Increment 5: FastAPI routes + React/Vite frontend (profile editor, draft review, feedback loops)
 
-The full 6-stage pipeline runs end-to-end. Live-verified (real resume × sarvam.ai):
+All 6 stages plus the UI are built and live-verified (real resume × sarvam.ai):
 resume→claims, company→facts, match→78/100 fit, plan→one angle, write→102-word
 grounded email, verify→PASS. Multi-key Gemini rotation is active.
+
+## Running the app
+
+```
+# terminal 1 — API
+cd backend && .venv\Scripts\python.exe -m uvicorn app.main:app --reload --port 8100
+
+# terminal 2 — UI
+cd frontend && npm install && npm run dev     # http://localhost:5173
+```
+
+Three tabs: **Profile** (review/correct the claims ledger), **Companies** (add &
+scrape, view facts ledger), **Runs & Drafts** (match + plan, write + verify, edit
+the draft, mark replied). API docs at http://localhost:8100/docs.
