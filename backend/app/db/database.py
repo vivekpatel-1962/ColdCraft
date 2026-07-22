@@ -209,6 +209,87 @@ def save_verifier(run_id: int, verifier_json: str) -> None:
         )
 
 
+def update_candidate_profile(profile_id: int, profile_json: str) -> None:
+    """Human review: correct the claims ledger in place (not a new row — the
+    reviewed profile replaces the extracted one as the source of truth)."""
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE candidate_profiles SET profile_json = ? WHERE id = ?",
+            (profile_json, profile_id),
+        )
+
+
+def list_companies() -> list[sqlite3.Row]:
+    with get_conn() as conn:
+        return conn.execute(
+            "SELECT c.domain, c.name, cp.profile_tier, cp.scraped_at, cp.id AS profile_id "
+            "FROM companies c "
+            "JOIN company_profiles cp ON cp.id = ("
+            "  SELECT id FROM company_profiles WHERE company_id = c.id ORDER BY id DESC LIMIT 1) "
+            "ORDER BY cp.scraped_at DESC"
+        ).fetchall()
+
+
+def list_runs(limit: int = 50) -> list[sqlite3.Row]:
+    with get_conn() as conn:
+        return conn.execute(
+            "SELECT r.id, r.status, r.created_at, r.job_posting_url, "
+            "       c.domain, c.name AS company_name, e.id AS email_id, e.subject, e.replied "
+            "FROM runs r "
+            "JOIN company_profiles cp ON cp.id = r.company_profile_id "
+            "JOIN companies c ON c.id = cp.company_id "
+            "LEFT JOIN emails e ON e.id = ("
+            "  SELECT id FROM emails WHERE run_id = r.id ORDER BY id DESC LIMIT 1) "
+            "ORDER BY r.id DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
+
+
+def get_run(run_id: int) -> sqlite3.Row | None:
+    with get_conn() as conn:
+        return conn.execute("SELECT * FROM runs WHERE id = ?", (run_id,)).fetchone()
+
+
+def get_email_for_run(run_id: int) -> sqlite3.Row | None:
+    with get_conn() as conn:
+        return conn.execute(
+            "SELECT * FROM emails WHERE run_id = ? ORDER BY id DESC LIMIT 1", (run_id,)
+        ).fetchone()
+
+
+def get_email(email_id: int) -> sqlite3.Row | None:
+    with get_conn() as conn:
+        return conn.execute("SELECT * FROM emails WHERE id = ?", (email_id,)).fetchone()
+
+
+def update_email(email_id: int, final_body: str | None = None, status: str | None = None) -> None:
+    """final_body is the edit-learning signal: the diff vs generated_body is what
+    the user actually changed."""
+    sets, params = [], []
+    if final_body is not None:
+        sets.append("final_body = ?")
+        params.append(final_body)
+    if status is not None:
+        sets.append("status = ?")
+        params.append(status)
+        if status == "sent":
+            sets.append("sent_at = datetime('now')")
+    if not sets:
+        return
+    params.append(email_id)
+    with get_conn() as conn:
+        conn.execute(f"UPDATE emails SET {', '.join(sets)} WHERE id = ?", params)
+
+
+def set_email_replied(email_id: int, replied: bool) -> None:
+    """The outcome loop."""
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE emails SET replied = ?, replied_at = datetime('now') WHERE id = ?",
+            (1 if replied else 0, email_id),
+        )
+
+
 def get_recent_opening_lines(limit: int = 50) -> list[str]:
     """Past email openers, for the verifier's cross-email repetition check."""
     with get_conn() as conn:

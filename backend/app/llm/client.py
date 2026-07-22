@@ -14,6 +14,7 @@ Routing policy:
 """
 import json
 import logging
+import time
 from typing import TypeVar
 
 import httpx
@@ -25,6 +26,13 @@ log = logging.getLogger("coldmail.llm")
 
 T = TypeVar("T", bound=BaseModel)
 
+# Upstream hiccups (model overloaded, gateway blips) — distinct from quota. These
+# are temporary by definition, so retry with backoff rather than rotating keys:
+# a 503 is model-side capacity, identical across every key.
+TRANSIENT_CODES = {500, 502, 503, 504}
+TRANSIENT_ATTEMPTS = 3
+TRANSIENT_BACKOFF_SECONDS = 2.0
+
 
 class LLMError(Exception):
     pass
@@ -33,6 +41,10 @@ class LLMError(Exception):
 class QuotaExhausted(LLMError):
     """Raised when the primary provider is out of quota and the stage's policy
     forbids falling back. Caller should queue and retry after quota reset."""
+
+
+class ProviderUnavailable(LLMError):
+    """The provider returned a transient 5xx and kept doing so across retries."""
 
 
 def _gemini_model_for(stage: str) -> str:
@@ -95,7 +107,9 @@ def _call_gemini(stage: str, system: str, user: str, schema: type[T]) -> T:
     last_quota_error: Exception | None = None
     for i in order:
         try:
-            result = _call_gemini_with_key(keys[i], stage, system, user, schema)
+            result = _with_transient_retry(
+                lambda: _call_gemini_with_key(keys[i], stage, system, user, schema), stage
+            )
             keyring.remember(i)
             log.info("stage=%s provider=gemini key=#%d model=%s ok", stage, i, _gemini_model_for(stage))
             return result
@@ -151,6 +165,33 @@ def _is_quota_error(e: Exception) -> bool:
     from google.genai import errors as gerrors
 
     return isinstance(e, gerrors.APIError) and getattr(e, "code", None) == 429
+
+
+def _is_transient_error(e: Exception) -> bool:
+    from google.genai import errors as gerrors
+
+    return isinstance(e, gerrors.APIError) and getattr(e, "code", None) in TRANSIENT_CODES
+
+
+def _with_transient_retry(fn, stage: str):
+    """Retry a provider call through temporary 5xx blips with exponential backoff.
+    Quota errors pass straight through — those are the key rotator's business."""
+    delay = TRANSIENT_BACKOFF_SECONDS
+    for attempt in range(1, TRANSIENT_ATTEMPTS + 1):
+        try:
+            return fn()
+        except Exception as e:
+            if not _is_transient_error(e):
+                raise
+            if attempt == TRANSIENT_ATTEMPTS:
+                raise ProviderUnavailable(
+                    f"Provider returned {getattr(e, 'code', '5xx')} for stage '{stage}' "
+                    f"after {TRANSIENT_ATTEMPTS} attempts — model is overloaded, try again shortly."
+                ) from e
+            log.warning("stage=%s transient %s, retry %d/%d in %.0fs",
+                        stage, getattr(e, "code", "5xx"), attempt, TRANSIENT_ATTEMPTS, delay)
+            time.sleep(delay)
+            delay *= 2
 
 
 def complete_json(stage: str, system: str, user: str, schema: type[T]) -> T:

@@ -1,31 +1,27 @@
-"""FastAPI app. Increment 1 exposes health + the active candidate profile;
-company/run/draft routes arrive with their pipeline increments.
+"""FastAPI app — the HTTP surface for the whole pipeline.
 
 Dev: uvicorn app.main:app --reload --port 8100
+Routes live in app/api/routes.py; see /docs for the interactive schema.
 """
-import json
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
-from fastapi import FastAPI, HTTPException
+from app.api.routes import router
 
-from app.db import database
+app = FastAPI(title="coldmail", version="0.5.0")
 
-app = FastAPI(title="coldmail", version="0.1.0")
+# Vite dev server. Single-user local tool — no auth layer by design.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.include_router(router)
 
 
 @app.get("/health")
 def health():
     return {"ok": True}
-
-
-@app.get("/api/profile")
-def get_active_profile():
-    database.init_db()
-    row = database.get_active_candidate_profile()
-    if row is None:
-        raise HTTPException(404, "No candidate profile yet — run scripts.analyze_resume first")
-    return {
-        "id": row["id"],
-        "resume_filename": row["resume_filename"],
-        "created_at": row["created_at"],
-        "profile": json.loads(row["profile_json"]),
-    }
