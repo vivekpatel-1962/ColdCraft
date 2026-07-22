@@ -184,6 +184,12 @@ function DraftPanel({ run, verifier, onRefresh }) {
             grounded: {String(verifier.grounded)} · {verifier.word_count} words
             {verifier.within_word_target ? ' (ok)' : ' (outside 90-140)'}
           </p>
+          {verifier.format_issues?.length > 0 && (
+            <div className="small bad">
+              <b>Format issues:</b>
+              <ul>{verifier.format_issues.map((f, i) => <li key={i}>{f}</li>)}</ul>
+            </div>
+          )}
           {verifier.banned_hits?.length > 0 && (
             <p className="small bad">banned phrases: {verifier.banned_hits.join(', ')}</p>
           )}

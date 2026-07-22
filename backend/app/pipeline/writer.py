@@ -6,6 +6,7 @@ If a fact isn't in the evidence it was given, the writer literally cannot state 
 because it never saw it. Grounding by construction, not by instruction alone.
 """
 import logging
+import re
 from pathlib import Path
 
 from app.llm.client import complete_json
@@ -14,6 +15,20 @@ from app.models import CandidateProfile, CompanyProfile, EmailDraft, EmailPlan
 log = logging.getLogger("coldmail.writer")
 
 PROMPT_PATH = Path(__file__).resolve().parent.parent / "prompts" / "writer.md"
+
+
+def _clean_body(text: str) -> str:
+    """Repair the escape artifacts models routinely emit inside JSON strings.
+
+    A draft came back with the two characters backslash-n instead of newlines,
+    rendering the whole email as one unreadable block. The prompt forbids it, but
+    prompts are not guarantees — so normalise here too.
+    """
+    t = text.replace("\\r\\n", "\n").replace("\\n", "\n").replace("\\t", " ")
+    t = t.replace("\r\n", "\n").replace("\r", "\n")
+    t = re.sub(r"[ \t]+\n", "\n", t)      # trailing spaces before a break
+    t = re.sub(r"\n{3,}", "\n\n", t)      # no runs of blank lines
+    return t.strip()
 
 
 def _selected_evidence(plan: EmailPlan, profile: CandidateProfile, company: CompanyProfile):
@@ -60,9 +75,13 @@ def write(plan: EmailPlan, profile: CandidateProfile, company: CompanyProfile) -
     log.info("closed-world writer: %d claims + %d facts selected from plan bridges",
              len(claims), len(facts))
     system = PROMPT_PATH.read_text(encoding="utf-8")
-    return complete_json(
+    draft = complete_json(
         stage="writer",
         system=system,
         user=_render(plan, profile, company),
         schema=EmailDraft,
     )
+    draft.body = _clean_body(draft.body)
+    draft.opening_line = _clean_body(draft.opening_line)
+    draft.subject = draft.subject.replace("\\n", " ").strip()
+    return draft

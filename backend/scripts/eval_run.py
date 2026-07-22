@@ -141,6 +141,8 @@ def audit_draft(draft, report, plan) -> list[str]:
     if not report.grounded:
         bad = [c.sentence for c in report.claim_checks if not c.supported]
         w.append(f"UNGROUNDED: {len(bad)} unsupported sentence(s)")
+    for f in report.format_issues:
+        w.append(f"FORMAT: {f}")
     if not report.within_word_target:
         w.append(f"word_count={report.word_count} outside 90-140")
     if report.banned_hits:

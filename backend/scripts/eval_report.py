@@ -163,9 +163,14 @@ def _render_company_stage(s: dict) -> str:
             f'<td class="small">{e(c["sentence"])}{("<br><em class=bad>" + e(c["issue"]) + "</em>") if c.get("issue") else ""}</td></tr>'
             for c in v["claim_checks"])
         vb = {"pass": "ok", "revise": "warn", "fail": "bad"}.get(v["verdict"], "info")
+        fmt = ""
+        if v.get("format_issues"):
+            items = "".join(f"<li>{e(x)}</li>" for x in v["format_issues"])
+            fmt = f'<div class="weak small"><b>Format issues</b><ul>{items}</ul></div>'
         body = f"""<div class="row"><span class="badge {vb}">{e(v['verdict']).upper()}</span>
             <span class="small">grounded={e(v['grounded'])} · {e(v['word_count'])} words
             {'(ok)' if v['within_word_target'] else '(OUT OF RANGE)'}</span></div>
+          {fmt}
           <table><tr><th></th><th>evidence</th><th>sentence</th></tr>{checks}</table>
           <p class="small muted">{e(v['notes'])}</p>"""
 

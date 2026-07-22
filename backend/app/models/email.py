@@ -53,6 +53,11 @@ class VerifierReport(BaseModel):
     claim_checks: list[ClaimCheck]
     ai_tells: list[str] = Field(default_factory=list)
     banned_hits: list[str] = Field(default_factory=list, description="Banned phrases found (deterministic)")
+    format_issues: list[str] = Field(
+        default_factory=list,
+        description="Readability/structure problems: escape artifacts, missing greeting, "
+                    "wall-of-text, over-long sentences, missing sign-off",
+    )
     word_count: int
     within_word_target: bool
     opener_repetition: Optional[str] = Field(

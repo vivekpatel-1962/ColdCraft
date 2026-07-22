@@ -60,6 +60,10 @@ def main() -> None:
     mark = {"pass": "PASS", "revise": "REVISE", "fail": "FAIL"}[r.verdict.value]
     print(f"\n=== VERIFIER: {mark} ===")
     print(f"grounded={r.grounded}  words={r.word_count} ({'ok' if r.within_word_target else 'OUT OF 90-140'})")
+    if r.format_issues:
+        print("FORMAT ISSUES (email won't read well):")
+        for f in r.format_issues:
+            print(f"  - {f}")
     if r.banned_hits:
         print(f"banned phrases used: {', '.join(r.banned_hits)}")
     if r.ai_tells:
