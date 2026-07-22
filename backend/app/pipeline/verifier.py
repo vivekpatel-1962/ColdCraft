@@ -69,6 +69,45 @@ def _format_issues(draft: EmailDraft) -> list[str]:
     return issues
 
 
+def _sales_issues(draft: EmailDraft, plan: EmailPlan) -> list[str]:
+    """The craft checks a sales reviewer would make.
+
+    Grounding can be perfect while the email is still unsendable: an opener that
+    recites the company's own business back at them, a middle that reads as a
+    resume, or an application that never names the role it's applying for.
+    """
+    issues: list[str] = []
+    body = draft.body
+    sentences = [s.strip() for s in re.split(r"(?<=[.!?])\s+", body.replace("\n", " ")) if s.strip()]
+
+    # Resume voice: too many sentences starting with "I".
+    i_starts = sum(1 for s in sentences if re.match(r"^I\b", s))
+    if len(sentences) >= 4 and i_starts >= max(3, len(sentences) // 2):
+        issues.append(f"{i_starts}/{len(sentences)} sentences start with 'I' — reads as a resume")
+
+    # An application that never names the role wastes its best opening.
+    if plan.target_role:
+        head = plan.target_role.split("(")[0].split(",")[0].strip().lower()
+        words = [w for w in re.findall(r"[a-z]+", head) if len(w) > 3]
+        if words and not any(w in body.lower() for w in words):
+            issues.append(f"plan targets the role '{plan.target_role}' but the email never names it")
+
+    # Opener that just describes the company to itself.
+    opener = draft.opening_line.strip().lower()
+    if re.match(r"^(your|you are|you're|as a|at)\b", opener) or re.search(
+        r"\b(is|are) (a|an|actively|currently|expanding|building|delivering|known)\b", opener
+    ):
+        issues.append("opening line mostly restates what the company already knows about itself")
+
+    # Unearned intensity — punch must come from specifics, not adjectives.
+    puffery = ["dramatically", "massively", "hugely", "significantly reduced", "world-class",
+               "state-of-the-art", "revolutionary", "seamlessly", "robust and scalable"]
+    hits = [p for p in puffery if p in body.lower()]
+    if hits:
+        issues.append(f"unearned intensifiers: {', '.join(hits)}")
+    return issues
+
+
 def _render(draft: EmailDraft, profile: CandidateProfile, company: CompanyProfile,
             banned: list[str]) -> str:
     lines = ["DRAFT SUBJECT: " + draft.subject, "", "DRAFT BODY:", draft.body, "",
@@ -125,7 +164,7 @@ def verify(
     body_lower = draft.body.lower()
     banned_hits = [p for p in plan.banned_phrases if p.lower() in body_lower]
     repetition = _opener_repetition(draft.opening_line, history_openers)
-    format_issues = _format_issues(draft)
+    format_issues = _format_issues(draft) + _sales_issues(draft, plan)
 
     verdict = _verdict(llm.grounded, llm.ai_tells, banned_hits, within, repetition, format_issues)
     log.info("verifier verdict=%s grounded=%s words=%d banned=%d ai_tells=%d format=%d",

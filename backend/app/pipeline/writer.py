@@ -51,6 +51,10 @@ def _render(plan: EmailPlan, profile: CandidateProfile, company: CompanyProfile)
     if profile.contact_email:
         lines.append(f"  email: {profile.contact_email}")
     lines += [f"\nCOMPANY: {company.name}", "", "PLAN:", f"  angle: {plan.angle}",
+              f"  value_to_them: {plan.value_to_them}",
+              f"  proof_point (LEAD WITH THIS): {plan.proof_point}",
+              f"  target_role: {plan.target_role or '(none — not an application)'}",
+              f"  recipient_type: {plan.recipient_type.value}",
               f"  tone: {plan.tone.value}", f"  opening_hook: {plan.opening_hook}",
               f"  call_to_action: {plan.call_to_action}", f"  word_target: {plan.word_target}"]
 

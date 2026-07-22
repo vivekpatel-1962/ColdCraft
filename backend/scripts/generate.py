@@ -97,7 +97,7 @@ def main() -> None:
     for ov in overlaps.overlaps:
         print(f"  [{ov.score:.2f}] {ov.claim_id}x{ov.fact_id} {ov.rationale}")
 
-    plan = make_plan(profile, company, overlaps)
+    plan = make_plan(profile, company, overlaps, recipient_email=res.recipient_email)
     database.save_plan(run_id, plan.model_dump_json(indent=2))
     print(f"\n=== PLAN === {plan.angle}")
 

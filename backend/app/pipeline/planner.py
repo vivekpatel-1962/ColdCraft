@@ -15,13 +15,22 @@ log = logging.getLogger("coldmail.planner")
 PROMPT_PATH = Path(__file__).resolve().parent.parent / "prompts" / "planner.md"
 
 
-def _render(profile: CandidateProfile, company: CompanyProfile, overlaps: RankedOverlaps) -> str:
+def _render(profile: CandidateProfile, company: CompanyProfile, overlaps: RankedOverlaps,
+            recipient_email: str | None = None) -> str:
     claim = {c.id: c for c in profile.claims}
     fact = {f.id: f for f in company.facts}
 
     lines = [
         f"CANDIDATE: {profile.full_name} — {profile.headline}",
         f"COMPANY: {company.name} — {company.one_liner}",
+    ]
+    if recipient_email:
+        lines.append(f"RECIPIENT: {recipient_email}  (infer recipient_type from this)")
+    if company.hiring_signals:
+        # Surfaced explicitly: an open role the candidate fits is the strongest
+        # possible opening, and it was getting buried inside the fact list.
+        lines.append("OPEN ROLES AT THIS COMPANY: " + ", ".join(company.hiring_signals))
+    lines += [
         f"\nFIT: {overlaps.fit_score}/100 — {overlaps.fit_summary}",
         "\nRANKED OVERLAPS (strongest first) — build the angle from the top ones:",
     ]
@@ -40,11 +49,12 @@ def _render(profile: CandidateProfile, company: CompanyProfile, overlaps: Ranked
     return "\n".join(lines)
 
 
-def plan(profile: CandidateProfile, company: CompanyProfile, overlaps: RankedOverlaps) -> EmailPlan:
+def plan(profile: CandidateProfile, company: CompanyProfile, overlaps: RankedOverlaps,
+         recipient_email: str | None = None) -> EmailPlan:
     system = PROMPT_PATH.read_text(encoding="utf-8")
     return complete_json(
         stage="planner",
         system=system,
-        user=_render(profile, company, overlaps),
+        user=_render(profile, company, overlaps, recipient_email),
         schema=EmailPlan,
     )
