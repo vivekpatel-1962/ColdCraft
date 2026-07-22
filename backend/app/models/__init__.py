@@ -7,6 +7,7 @@ from .company import (
     ProfileTier,
 )
 from .email import ClaimCheck, EmailDraft, Verdict, VerifierLLM, VerifierReport
+from .intake import HiringPoster, IntakeResult, IntakeSource
 from .matching import Overlap, OverlapKind, RankedOverlaps
 from .plan import Bridge, EmailPlan, Tone
 
@@ -31,4 +32,7 @@ __all__ = [
     "Verdict",
     "VerifierLLM",
     "VerifierReport",
+    "HiringPoster",
+    "IntakeResult",
+    "IntakeSource",
 ]

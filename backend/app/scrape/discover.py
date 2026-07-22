@@ -20,10 +20,21 @@ BUCKET_RANK = {
     "github": 6,
 }
 
+# Applicant-tracking hosts. Companies routinely host careers off their own domain,
+# so these are allowed as external links (like GitHub) — missing them was why
+# several companies produced an empty hiring_signals list.
+ATS_HOSTS = (
+    "greenhouse.io", "lever.co", "ashbyhq.com", "workable.com", "recruitee.com",
+    "smartrecruiters.com", "zohorecruit", "keka.com", "darwinbox", "bamboohr.com",
+    "jobvite.com", "workday", "successfactors", "icims.com", "teamtailor.com",
+    "breezy.hr", "personio", "rippling.com",
+)
+
 # (bucket, keyword-substrings) — first match wins, in this order.
 _BUCKETS = [
-    ("careers", ("career", "/jobs", "join-us", "join us", "openings", "positions",
-                 "we-are-hiring", "greenhouse.io", "lever.co", "ashbyhq")),
+    ("careers", ("career", "/jobs", "/job/", "join-us", "join us", "joinus", "openings",
+                 "positions", "we-are-hiring", "hiring", "work-with-us", "life-at",
+                 "/join", "vacancies", "opportunities") + ATS_HOSTS),
     ("about", ("about", "/company", "who-we-are", "who we are", "our-story", "mission")),
     ("engineering", ("engineering", "eng-blog", "/blog", "developers", "tech-blog", "/tech")),
     ("product", ("product", "platform", "features", "solutions", "how-it-works")),
@@ -53,9 +64,18 @@ class _LinkExtractor(HTMLParser):
             self._href = None
 
 
-def _bucket_for(url_lower: str, path_and_text: str) -> str | None:
+def _bucket_for(url_lower: str, path_lower: str, text_lower: str) -> str | None:
+    """URL path is the strong signal; anchor text is a weaker fallback.
+
+    Matching both in one haystack over-matched badly — any link whose anchor text
+    merely contained "about" got bucketed as about, which swamped one company's
+    page budget with 9 near-duplicate pages. Path first fixes that.
+    """
     for name, kws in _BUCKETS:
-        if any(k in path_and_text or k in url_lower for k in kws):
+        if any(k in path_lower or k in url_lower for k in kws):
+            return name
+    for name, kws in _BUCKETS:
+        if any(k in text_lower for k in kws):
             return name
     return None
 
@@ -85,17 +105,17 @@ def discover_links(entry_url: str, html: str) -> list[tuple[int, str, str]]:
         if norm in seen:
             continue
 
-        hay = (parsed.path + " " + text).lower()
-        bucket = _bucket_for(absu.lower(), hay)
+        bucket = _bucket_for(absu.lower(), parsed.path.lower(), text.lower())
         if bucket is None:
             continue  # keep only prioritized links
 
-        same_domain = (
-            parsed.netloc.lower() == base_domain
-            or parsed.netloc.lower().endswith("." + base_domain)
+        host = parsed.netloc.lower()
+        same_domain = host == base_domain or host.endswith("." + base_domain)
+        off_site_ok = bucket == "github" or (
+            bucket == "careers" and any(a in host for a in ATS_HOSTS)
         )
-        if bucket != "github" and not same_domain:
-            continue  # off-site link that isn't GitHub — skip
+        if not same_domain and not off_site_ok:
+            continue  # off-site link that isn't GitHub or a careers ATS — skip
 
         seen.add(norm)
         scored.append((BUCKET_RANK[bucket], norm, bucket))

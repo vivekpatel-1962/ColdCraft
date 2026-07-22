@@ -25,6 +25,10 @@ log = logging.getLogger("coldmail.company")
 PROMPT_PATH = Path(__file__).resolve().parent.parent / "prompts" / "company_summarizer.md"
 
 MAX_PAGES = 12
+# Cap per bucket so one section can't eat the whole budget. Without this, one
+# company returned 7 product pages out of 9 and produced a narrow 2-category
+# ledger — thin material for an email. Diversity of source beats depth in one area.
+MAX_PER_BUCKET = 3
 # Cap each page's contribution to the distil prompt so one long post (a 50k-char
 # eng blog) can't crowd out the other pages' facts. Key facts front-load, so the
 # head of the page is what we keep. Tier calc still uses the full char counts.
@@ -79,13 +83,24 @@ def _plan_targets(homepage_url: str, job_posting_url: str | None) -> tuple[list[
 
     seen: set[str] = set()
     targets: list[tuple[str, str]] = []
-    for url, bucket in must + discovered:
-        if url in seen:
+    per_bucket: dict[str, int] = {}
+
+    for url, bucket in must:  # job posting + homepage always survive the cap
+        if url not in seen:
+            seen.add(url)
+            targets.append((url, bucket))
+            per_bucket[bucket] = per_bucket.get(bucket, 0) + 1
+
+    # discovered links arrive priority-sorted; the per-bucket cap keeps coverage broad
+    for url, bucket in discovered:
+        if len(targets) >= MAX_PAGES:
+            break
+        if url in seen or per_bucket.get(bucket, 0) >= MAX_PER_BUCKET:
             continue
         seen.add(url)
         targets.append((url, bucket))
-        if len(targets) >= MAX_PAGES:
-            break
+        per_bucket[bucket] = per_bucket.get(bucket, 0) + 1
+
     return targets, entry_html
 
 
@@ -132,16 +147,37 @@ def _combined_text(scrape: ScrapeResult) -> str:
     return "\n\n".join(blocks)
 
 
-def analyze_company(homepage_url: str, job_posting_url: str | None = None) -> tuple[int, CompanyProfile, ScrapeResult]:
+def analyze_company(
+    homepage_url: str,
+    job_posting_url: str | None = None,
+    extra_context: str | None = None,
+    extra_context_label: str = "hiring poster supplied by the user",
+) -> tuple[int, CompanyProfile, ScrapeResult]:
     """Full Stage 2: scrape -> distil -> persist. Returns (company_profile_id,
-    profile, scrape_result). Raises CompanyScrapeError when content is too thin."""
+    profile, scrape_result). Raises CompanyScrapeError when content is too thin.
+
+    `extra_context` is off-web material the user supplied (e.g. text read off a
+    hiring poster). It counts toward the content budget, so a company with a thin
+    website can still clear the tier gate when the user brought a job posting.
+    """
     scrape = scrape_company(homepage_url, job_posting_url)
     tier = scrape.tier
-    if tier == ProfileTier.manual:
+    if tier == ProfileTier.manual and not extra_context:
         raise CompanyScrapeError(
             f"Only {scrape.total_chars} chars across {len(scrape.pages)} pages for "
             f"{homepage_url} — not enough to build a profile. Add a job-posting URL "
             "or enter the company facts manually."
+        )
+    if tier == ProfileTier.manual and extra_context:
+        tier = ProfileTier.thin  # the supplied posting carries it over the line
+        log.info("scrape was too thin alone; proceeding on supplied context (tier=thin)")
+
+    extra_block = ""
+    if extra_context:
+        extra_block = (
+            f"### SOURCE [{extra_context_label}]: user-supplied\n{extra_context}\n\n"
+            "The block above is a job posting the user supplied directly. Treat it as "
+            "high-signal and cite it with source_url 'user-supplied'.\n\n"
         )
 
     system = PROMPT_PATH.read_text(encoding="utf-8")
@@ -149,6 +185,7 @@ def analyze_company(homepage_url: str, job_posting_url: str | None = None) -> tu
         stage="company_summarizer",
         system=system,
         user=f"Company homepage: {homepage_url}\nProfile tier: {tier.value}\n\n"
+             f"{extra_block}"
              f"Scraped pages (attribute every fact to its SOURCE url):\n\n{_combined_text(scrape)}",
         schema=CompanyProfile,
     )

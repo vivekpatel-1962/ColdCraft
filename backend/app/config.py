@@ -33,5 +33,8 @@ DATABASE_PATH = (BACKEND_DIR / os.getenv("DATABASE_PATH", "../data/coldmail.db")
 
 # Stage → role mapping. Judgment stages must not silently degrade to a weaker
 # fallback model (queue-and-wait instead); extraction stages may fall back.
-EXTRACTION_STAGES = {"company_summarizer", "verifier", "resume_analyzer"}
+EXTRACTION_STAGES = {"company_summarizer", "verifier", "resume_analyzer", "poster_reader"}
+# Extraction-shaped but quality-sensitive and one-shot: a misread poster (wrong
+# email/website) poisons everything downstream, so these get the stronger model.
+STRONG_EXTRACTION_STAGES = {"resume_analyzer", "poster_reader"}
 JUDGMENT_STAGES = {"matcher", "planner", "writer"}

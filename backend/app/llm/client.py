@@ -21,6 +21,7 @@ import httpx
 from pydantic import BaseModel, ValidationError
 
 from app import config
+from app.llm import telemetry
 
 log = logging.getLogger("coldmail.llm")
 
@@ -48,16 +49,21 @@ class ProviderUnavailable(LLMError):
 
 
 def _gemini_model_for(stage: str) -> str:
-    if stage in config.JUDGMENT_STAGES or stage == "resume_analyzer":
+    if stage in config.JUDGMENT_STAGES or stage in config.STRONG_EXTRACTION_STAGES:
         return config.GEMINI_MODEL_JUDGMENT
     return config.GEMINI_MODEL_EXTRACTION
 
 
 def _call_gemini_with_key(
-    api_key: str, stage: str, system: str, user: str, schema: type[T]
+    api_key: str, stage: str, system: str, user: str, schema: type[T],
+    images: list[tuple[bytes, str]] | None = None,
 ) -> T:
     """One key's attempt at a stage, with the schema-validation retry. Quota (429)
-    errors propagate up so the key rotator can move to the next key."""
+    errors propagate up so the key rotator can move to the next key.
+
+    `images` is [(bytes, mime_type)] for multimodal stages (e.g. reading a hiring
+    poster); text-only stages pass None and behave exactly as before.
+    """
     from google import genai
     from google.genai import types as gtypes
 
@@ -65,9 +71,13 @@ def _call_gemini_with_key(
     model = _gemini_model_for(stage)
 
     def once(extra_user: str = "") -> T:
+        contents: list = [
+            gtypes.Part.from_bytes(data=data, mime_type=mime) for data, mime in (images or [])
+        ]
+        contents.append(user + extra_user)
         resp = client.models.generate_content(
             model=model,
-            contents=user + extra_user,
+            contents=contents,
             config=gtypes.GenerateContentConfig(
                 system_instruction=system,
                 response_mime_type="application/json",
@@ -90,7 +100,8 @@ def _call_gemini_with_key(
         )
 
 
-def _call_gemini(stage: str, system: str, user: str, schema: type[T]) -> T:
+def _call_gemini(stage: str, system: str, user: str, schema: type[T],
+                 images: list[tuple[bytes, str]] | None = None) -> T:
     """Try the configured Gemini keys in rotation. Uses the last known-good key
     first; on a per-key quota (429) it rotates to the next. Raises the quota error
     only when EVERY key is exhausted, so complete_json() then applies stage policy."""
@@ -104,25 +115,51 @@ def _call_gemini(stage: str, system: str, user: str, schema: type[T]) -> T:
         )
 
     order = keyring.rotation_order(len(keys))
+    model = _gemini_model_for(stage)
     last_quota_error: Exception | None = None
+    counter: dict = {}
+    rotations = 0
+    started = time.monotonic()
+
     for i in order:
         try:
             result = _with_transient_retry(
-                lambda: _call_gemini_with_key(keys[i], stage, system, user, schema), stage
+                lambda: _call_gemini_with_key(keys[i], stage, system, user, schema, images),
+                stage, counter,
             )
             keyring.remember(i)
-            log.info("stage=%s provider=gemini key=#%d model=%s ok", stage, i, _gemini_model_for(stage))
+            telemetry.record(telemetry.LLMCall(
+                stage=stage, provider="gemini", model=model, key_index=i,
+                duration_s=round(time.monotonic() - started, 2), ok=True,
+                quota_rotations=rotations, transient_retries=counter.get("transient", 0),
+                input_chars=len(system) + len(user),
+            ))
+            log.info("stage=%s provider=gemini key=#%d model=%s ok (%.1fs)",
+                     stage, i, model, time.monotonic() - started)
             return result
         except Exception as e:
             if not _is_quota_error(e):
+                telemetry.record(telemetry.LLMCall(
+                    stage=stage, provider="gemini", model=model, key_index=i,
+                    duration_s=round(time.monotonic() - started, 2), ok=False, error=str(e)[:300],
+                    quota_rotations=rotations, transient_retries=counter.get("transient", 0),
+                    input_chars=len(system) + len(user),
+                ))
                 raise
             last_quota_error = e
+            rotations += 1
             log.warning("stage=%s gemini key #%d quota-exhausted, rotating (%d keys total)",
                         stage, i, len(keys))
             continue
 
     # Every key is out of quota — re-raise so complete_json applies the stage policy.
     assert last_quota_error is not None
+    telemetry.record(telemetry.LLMCall(
+        stage=stage, provider="gemini", model=model, key_index=None,
+        duration_s=round(time.monotonic() - started, 2), ok=False,
+        error="all keys quota-exhausted", quota_rotations=rotations,
+        transient_retries=counter.get("transient", 0), input_chars=len(system) + len(user),
+    ))
     raise last_quota_error
 
 
@@ -173,7 +210,7 @@ def _is_transient_error(e: Exception) -> bool:
     return isinstance(e, gerrors.APIError) and getattr(e, "code", None) in TRANSIENT_CODES
 
 
-def _with_transient_retry(fn, stage: str):
+def _with_transient_retry(fn, stage: str, counter: dict | None = None):
     """Retry a provider call through temporary 5xx blips with exponential backoff.
     Quota errors pass straight through — those are the key rotator's business."""
     delay = TRANSIENT_BACKOFF_SECONDS
@@ -183,6 +220,8 @@ def _with_transient_retry(fn, stage: str):
         except Exception as e:
             if not _is_transient_error(e):
                 raise
+            if counter is not None:
+                counter["transient"] = counter.get("transient", 0) + 1
             if attempt == TRANSIENT_ATTEMPTS:
                 raise ProviderUnavailable(
                     f"Provider returned {getattr(e, 'code', '5xx')} for stage '{stage}' "
@@ -194,13 +233,15 @@ def _with_transient_retry(fn, stage: str):
             delay *= 2
 
 
-def complete_json(stage: str, system: str, user: str, schema: type[T]) -> T:
+def complete_json(stage: str, system: str, user: str, schema: type[T],
+                  images: list[tuple[bytes, str]] | None = None) -> T:
     """Run one pipeline stage. Returns a validated instance of `schema`.
 
+    `images` enables multimodal stages ([(bytes, mime_type)]).
     Raises QuotaExhausted when quota is gone and the stage must not degrade.
     """
     try:
-        return _call_gemini(stage, system, user, schema)  # logs its own success (with key index)
+        return _call_gemini(stage, system, user, schema, images)  # logs its own success
     except Exception as e:
         if not _is_quota_error(e):
             raise
@@ -208,6 +249,13 @@ def complete_json(stage: str, system: str, user: str, schema: type[T]) -> T:
             raise QuotaExhausted(
                 f"Gemini quota exhausted on judgment stage '{stage}'. "
                 "Waiting for the daily reset (midnight Pacific) beats a weaker-model email."
+            ) from e
+        if images:
+            # The OpenAI-compatible fallback path is text-only; degrading a vision
+            # extraction to a text model would silently drop the whole input.
+            raise QuotaExhausted(
+                f"Gemini quota exhausted on multimodal stage '{stage}' and the fallback "
+                "provider is text-only. Retry after the daily reset."
             ) from e
         log.warning("stage=%s gemini quota exhausted, using fallback provider", stage)
         result = _call_fallback(stage, system, user, schema)
