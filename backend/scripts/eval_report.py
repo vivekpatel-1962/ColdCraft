@@ -140,11 +140,19 @@ def _render_company_stage(s: dict) -> str:
         br = "".join(f'<li class="small"><span class="id">{e(b["claim_id"])}×{e(b["fact_id"])}</span>{e(b["point"])}</li>'
                      for b in o["bridges"])
         ex = "".join(f"<li class='small'>{e(x)}</li>" for x in o.get("excluded_notable", []))
-        body = f"""<p><b>Angle:</b> {e(o['angle'])}</p>
+        role = o.get("target_role")
+        role_html = (f'<span class="badge ok">applying: {e(role)}</span>' if role
+                     else '<span class="badge info">not an application</span>')
+        body = f"""<div class="row">{role_html}
+            <span class="badge info">reader: {e(o.get('recipient_type', '?'))}</span>
+            <span class="badge info">{e(o['tone'])}</span></div>
+          <p><b>Angle:</b> {e(o['angle'])}</p>
+          <p class="small"><b>Value to them:</b> {e(o.get('value_to_them', '—'))}</p>
+          <p class="small"><b>Proof point (leads the email):</b> {e(o.get('proof_point', '—'))}</p>
           <p class="small"><b>Hook:</b> {e(o['opening_hook'])}</p>
           <h4>bridges</h4><ul>{br}</ul>
           <p class="small"><b>CTA:</b> {e(o['call_to_action'])}</p>
-          <p class="small"><b>Tone:</b> {e(o['tone'])} · <b>target:</b> {e(o['word_target'])} words</p>
+          <p class="small"><b>target:</b> {e(o['word_target'])} words</p>
           <h4>excluded_notable</h4><ul>{ex or "<li class='small bad'>empty</li>"}</ul>
           <details><summary>banned phrases ({len(o.get('banned_phrases', []))})</summary>
             <p class="small muted">{e('; '.join(o.get('banned_phrases', [])))}</p></details>"""
@@ -216,7 +224,9 @@ def render_html(report: dict) -> str:
     parts.append(_render_resume(report["resume_stage"], prof))
 
     for c in report["companies"]:
-        parts.append(f'<h2>{e(c["domain"])} <span class="muted small">{e(c["url"])}</span></h2>')
+        to = (f' <span class="badge ok">to: {e(c["recipient"])}</span>'
+              if c.get("recipient") else '')
+        parts.append(f'<h2>{e(c["domain"])} <span class="muted small">{e(c["url"])}</span>{to}</h2>')
         if not c["stages"]:
             parts.append('<div class="stage fail"><p>no stages ran</p></div>')
         for s in c["stages"]:

@@ -19,6 +19,7 @@ from app.models import (
     CompanyProfile,
     EmailDraft,
     EmailPlan,
+    RecipientType,
     Verdict,
     VerifierLLM,
     VerifierReport,
@@ -105,7 +106,34 @@ def _sales_issues(draft: EmailDraft, plan: EmailPlan) -> list[str]:
     hits = [p for p in puffery if p in body.lower()]
     if hits:
         issues.append(f"unearned intensifiers: {', '.join(hits)}")
+
+    issues += _jargon_issues(draft, plan)
     return issues
+
+
+# Terms a non-engineer screening CVs will not parse. Widely-recognised names
+# (python, fastapi, gemini, gcp, react, aws) are deliberately absent — those buy
+# credibility rather than costing comprehension.
+DEEP_JARGON = [
+    "ssim", "pm2", "de-duplication", "deduplication", "dedup", "idempotent",
+    "sharding", "quantization", "kubernetes", "k8s", "orchestration", "middleware",
+    "webhook", "grpc", "protobuf", "schema-validated", "multi-tenant", "cron",
+    "termux", "vector database", "embeddings", "throughput", "async job queue",
+    "frame de-duplication", "model routing",
+]
+MAX_JARGON_FOR_RECRUITER = 2
+
+
+def _jargon_issues(draft: EmailDraft, plan: EmailPlan) -> list[str]:
+    """A recruiter who hits a term they can't parse skims instead of reading."""
+    if plan.recipient_type != RecipientType.recruiter:
+        return []
+    low = draft.body.lower()
+    found = sorted({t for t in DEEP_JARGON if t in low})
+    if len(found) > MAX_JARGON_FOR_RECRUITER:
+        return [f"{len(found)} engineer-only terms for a recruiter audience "
+                f"({', '.join(found)}) — translate to plain language"]
+    return []
 
 
 def _render(draft: EmailDraft, profile: CandidateProfile, company: CompanyProfile,
@@ -166,14 +194,30 @@ def verify(
     repetition = _opener_repetition(draft.opening_line, history_openers)
     format_issues = _format_issues(draft) + _sales_issues(draft, plan)
 
-    verdict = _verdict(llm.grounded, llm.ai_tells, banned_hits, within, repetition, format_issues)
+    # Reconcile the model's summary flag with its own per-sentence findings. A hard
+    # FAIL must be able to point at the offending sentence; "ungrounded" with nothing
+    # marked unsupported is an unactionable verdict, so it becomes a revise note.
+    unsupported = [c for c in llm.claim_checks if not c.supported]
+    grounded = llm.grounded
+    notes = llm.notes
+    if not grounded and not unsupported:
+        grounded = True
+        format_issues = format_issues + [
+            "verifier flagged a grounding concern without naming a sentence — review manually"
+        ]
+        log.warning("verifier said ungrounded but marked no sentence unsupported; downgraded to revise")
+    elif grounded and unsupported:
+        grounded = False  # per-sentence findings win over the summary flag
+        log.warning("verifier said grounded but marked %d sentence(s) unsupported", len(unsupported))
+
+    verdict = _verdict(grounded, llm.ai_tells, banned_hits, within, repetition, format_issues)
     log.info("verifier verdict=%s grounded=%s words=%d banned=%d ai_tells=%d format=%d",
-             verdict.value, llm.grounded, word_count, len(banned_hits),
+             verdict.value, grounded, word_count, len(banned_hits),
              len(llm.ai_tells), len(format_issues))
 
     return VerifierReport(
         verdict=verdict,
-        grounded=llm.grounded,
+        grounded=grounded,
         claim_checks=llm.claim_checks,
         ai_tells=llm.ai_tells,
         banned_hits=banned_hits,
@@ -181,5 +225,5 @@ def verify(
         word_count=word_count,
         within_word_target=within,
         opener_repetition=repetition,
-        notes=llm.notes,
+        notes=notes,
     )

@@ -25,6 +25,7 @@ from app.pipeline.company_intel import (  # noqa: E402
     analyze_company,
     domain_of,
 )
+from app.pipeline.intake import resolve as intake_resolve  # noqa: E402
 from app.pipeline.matcher import deterministic_bridges, match  # noqa: E402
 from app.pipeline.planner import plan as make_plan  # noqa: E402
 from app.pipeline.resume_analyzer import analyze_resume  # noqa: E402
@@ -162,9 +163,22 @@ def audit_draft(draft, report, plan) -> list[str]:
 
 # ---------- main ----------
 
-def eval_company(url: str, profile: CandidateProfile, history: list[str]) -> dict:
-    """Run stages 2-6 for one company. Returns a dict for the report."""
-    entry: dict = {"url": url, "domain": domain_of(url), "stages": [], "warnings": {}}
+def eval_company(target: str, profile: CandidateProfile, history: list[str]) -> dict:
+    """Run stages 2-6 for one target. A target may be a URL or an email address —
+    an address exercises the intake path and gives the planner a recipient, which
+    is what drives recipient_type and the jargon calibration."""
+    recipient = None
+    if "@" in target and "//" not in target:
+        res = intake_resolve(email=target)
+        url, recipient = res.company_url, res.recipient_email
+        if not url:
+            return {"url": target, "domain": target, "stages": [],
+                    "error": "could not derive a website from that address"}
+    else:
+        url = target if "//" in target else f"https://{target}"
+
+    entry: dict = {"url": url, "domain": domain_of(url), "recipient": recipient,
+                   "stages": [], "warnings": {}}
 
     rec, res = run_stage("company_intel", analyze_company, url, None)
     entry["stages"].append(rec)
@@ -195,7 +209,7 @@ def eval_company(url: str, profile: CandidateProfile, history: list[str]) -> dic
     }
     rec_m.warnings = audit_match(overlaps, det, profile, company)
 
-    rec_p, plan = run_stage("planner", make_plan, profile, company, overlaps)
+    rec_p, plan = run_stage("planner", make_plan, profile, company, overlaps, recipient)
     entry["stages"].append(rec_p)
     if not rec_p.ok:
         return entry
