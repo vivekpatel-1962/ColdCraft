@@ -148,8 +148,9 @@ def _call_gemini(stage: str, system: str, user: str, schema: type[T],
                 raise
             last_quota_error = e
             rotations += 1
-            log.warning("stage=%s gemini key #%d quota-exhausted, rotating (%d keys total)",
-                        stage, i, len(keys))
+            keyring.mark_exhausted(i)  # don't re-probe this key for the rest of the run
+            log.warning("stage=%s gemini key #%d quota-exhausted, rotating (%d/%d keys down)",
+                        stage, i, keyring.exhausted_count(), len(keys))
             continue
 
     # Every key is out of quota — re-raise so complete_json applies the stage policy.
