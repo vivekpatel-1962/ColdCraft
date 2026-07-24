@@ -16,3 +16,15 @@ Rules:
 - Do not invent employers, dates, metrics, or technologies not present in the text.
 - `primary_skills`: the 5-10 skills with the deepest evidence across claims,
   strongest first.
+
+Contact and links (from the header and the "LINKS EMBEDDED IN THE RESUME" block):
+- `contact.email`, `contact.phone`, `contact.location` (city, country as written).
+- `contact.linkedin`: the linkedin.com profile URL. `contact.github`: the GitHub
+  PROFILE URL (github.com/<user>), NOT a single repository. `contact.portfolio`: a
+  personal website if present.
+- A repository URL that clearly belongs to one project (the "near text" hint names
+  the project, or the path matches the project name) goes on THAT claim's `link`
+  field — not in contact. A generic github.com/<user> profile is contact.github.
+- Never invent or guess a URL. Only use links that actually appear in the resume.
+- `status`: one phrase capturing the candidate's current situation if the resume
+  makes it clear (e.g. "final-year CS undergrad, graduating 2027"). Null otherwise.

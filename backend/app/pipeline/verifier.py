@@ -151,6 +151,16 @@ def _render(draft: EmailDraft, profile: CandidateProfile, company: CompanyProfil
     return "\n".join(lines)
 
 
+_URLISH = re.compile(r"\S+@\S+|https?://\S+|(?:www\.|github\.com/|linkedin\.com/)\S+|[+]?\d[\d\s()-]{7,}\d|·")
+
+
+def _prose_only(body: str) -> str:
+    """Body with contact tokens (emails, URLs, phone, separators) removed, so word
+    counts reflect prose. Parentheses left empty by a stripped inline link are cleaned."""
+    t = _URLISH.sub("", body)
+    return re.sub(r"\(\s*\)", "", t)
+
+
 def _opener_repetition(opening_line: str, history: list[str]) -> str | None:
     ol = opening_line.strip().lower()
     for past in history:
@@ -186,8 +196,10 @@ def verify(
         schema=VerifierLLM,
     )
 
-    # Deterministic layer.
-    word_count = len(draft.body.split())
+    # Deterministic layer. Strip URL/email/phone/separator TOKENS (not whole lines)
+    # so the signature and any inline links don't inflate the count, while a real
+    # sentence that happens to contain a link still has its words counted.
+    word_count = len(_prose_only(draft.body).split())
     within = WORD_MIN <= word_count <= WORD_MAX
     body_lower = draft.body.lower()
     banned_hits = [p for p in plan.banned_phrases if p.lower() in body_lower]

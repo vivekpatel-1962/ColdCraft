@@ -1,4 +1,4 @@
-from .candidate import CandidateProfile, Claim, ClaimStrength, ClaimType
+from .candidate import CandidateProfile, Claim, ClaimStrength, ClaimType, ContactInfo
 from .company import (
     CompanyProfile,
     Fact,
@@ -16,6 +16,7 @@ __all__ = [
     "Claim",
     "ClaimStrength",
     "ClaimType",
+    "ContactInfo",
     "CompanyProfile",
     "Fact",
     "FactCategory",

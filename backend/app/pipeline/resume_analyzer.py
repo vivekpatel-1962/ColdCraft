@@ -13,13 +13,37 @@ PROMPT_PATH = Path(__file__).resolve().parent.parent / "prompts" / "resume_analy
 
 
 def extract_text(path: Path) -> str:
-    """PDF (PyMuPDF) or plain-text/markdown resume -> linear text."""
-    if path.suffix.lower() == ".pdf":
-        import fitz  # PyMuPDF
+    """PDF (PyMuPDF) or plain-text/markdown resume -> linear text.
 
-        with fitz.open(path) as doc:
-            return "\n\n".join(page.get_text() for page in doc)
-    return path.read_text(encoding="utf-8", errors="replace")
+    Resumes hide their most useful URLs (GitHub, LinkedIn, project repos) behind
+    icon glyphs, so get_text() alone loses them. We also pull the PDF's link
+    annotations and append them, tagged with the text nearest each link so the
+    analyzer can attach a repo URL to the right project.
+    """
+    if path.suffix.lower() != ".pdf":
+        return path.read_text(encoding="utf-8", errors="replace")
+
+    import fitz  # PyMuPDF
+
+    with fitz.open(path) as doc:
+        body = "\n\n".join(page.get_text() for page in doc)
+        links: list[str] = []
+        seen: set[str] = set()
+        for page in doc:
+            for l in page.get_links():
+                uri = l.get("uri")
+                if not uri or uri in seen:
+                    continue
+                seen.add(uri)
+                # The text sitting under the link rectangle — usually the project
+                # name for a repo link, which is how we associate it to a claim.
+                anchor = page.get_textbox(l["from"]).strip() if l.get("from") else ""
+                links.append(f"{uri}  (near text: {anchor})" if anchor else uri)
+
+    if links:
+        body += "\n\nLINKS EMBEDDED IN THE RESUME (assign each to the right place):\n"
+        body += "\n".join(links)
+    return body
 
 
 def analyze_resume(path: Path) -> tuple[int, CandidateProfile]:

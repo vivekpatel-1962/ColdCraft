@@ -41,12 +41,35 @@ class Claim(BaseModel):
     period: Optional[str] = Field(
         default=None, description="When, as written in the resume, e.g. '2024-2025' or 'Jun 2025'"
     )
+    link: Optional[str] = Field(
+        default=None,
+        description="A URL that belongs to THIS specific item — e.g. the GitHub repo or live demo "
+                    "of this project. Only set it if a link in the resume clearly belongs to this claim.",
+    )
+
+
+class ContactInfo(BaseModel):
+    """Everything needed to sign off and be contacted back. Drawn from the resume
+    header and its embedded hyperlinks — the writer builds the signature from this,
+    and links (GitHub especially) are strong signal for a technical role."""
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    location: Optional[str] = Field(default=None, description="City, country as written, e.g. 'Ahmedabad, India'")
+    linkedin: Optional[str] = None
+    github: Optional[str] = Field(default=None, description="GitHub PROFILE url (not a single repo)")
+    portfolio: Optional[str] = Field(default=None, description="Personal site / portfolio, if any")
 
 
 class CandidateProfile(BaseModel):
     full_name: str
     headline: str = Field(description="One-line professional identity, e.g. 'CS undergrad, full-stack + ML'")
-    contact_email: Optional[str] = None
+    contact: ContactInfo = Field(default_factory=ContactInfo)
+    status: Optional[str] = Field(
+        default=None,
+        description="Current situation in one phrase, if the resume implies it, e.g. "
+                    "'final-year CS undergrad, graduating 2027' or 'backend engineer, 3 yrs'",
+    )
+    contact_email: Optional[str] = None  # deprecated: kept so older stored profiles still load
     claims: list[Claim]
     primary_skills: list[str] = Field(
         default_factory=list,

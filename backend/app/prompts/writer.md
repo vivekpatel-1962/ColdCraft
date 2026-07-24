@@ -41,9 +41,23 @@ Best,
 Priya Sharma
 ```
 
-Hard limits: no paragraph over 3 sentences. No sentence over 25 words. Body is
-90-140 words including greeting and sign-off. Do not start more than two sentences
-with "I".
+End the body with the sign-off and the candidate's name on its own line:
+
+```
+Best,
+Vivek Patel
+```
+
+Do NOT write the contact line (email, phone, GitHub, LinkedIn) yourself — it is
+appended automatically after your name. Just end with the name.
+
+If a selected claim carries a `link` (a project's repo or demo) and you mention that
+project, you may add the URL inline once — but only if it reads naturally, not
+stuffed in. Never invent a URL.
+
+Hard limits: no paragraph over 3 sentences. No sentence over 25 words. Body (the
+prose, excluding the contact line) is 90-140 words including greeting and sign-off.
+Do not start more than two sentences with "I".
 
 # 2. Who is reading — `recipient_type`
 

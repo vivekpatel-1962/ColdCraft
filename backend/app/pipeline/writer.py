@@ -17,6 +17,41 @@ log = logging.getLogger("coldmail.writer")
 PROMPT_PATH = Path(__file__).resolve().parent.parent / "prompts" / "writer.md"
 
 
+def _short_url(u: str) -> str:
+    return u.replace("https://", "").replace("http://", "").replace("www.", "").rstrip("/")
+
+
+def _contact_line(profile: CandidateProfile) -> str:
+    """The canonical one-line signature footer, in priority order."""
+    c = profile.contact
+    parts = [p for p in (
+        c.email or profile.contact_email,
+        c.phone,
+        _short_url(c.github) if c.github else None,
+        _short_url(c.linkedin) if c.linkedin else None,
+        _short_url(c.portfolio) if c.portfolio else None,
+    ) if p]
+    return " · ".join(parts)
+
+
+_CONTACTISH = re.compile(r"@|https?://|github\.com|linkedin\.com|·|\d[\d\s()-]{7,}\d")
+
+
+def _ensure_signature(body: str, profile: CandidateProfile) -> str:
+    """Append the full contact line deterministically. The model assembled it
+    inconsistently (email only in one run, the full line in another), and a GitHub
+    link in the signature is too valuable for a technical role to leave to chance.
+    Any partial contact line the model added at the end is replaced by the canonical one."""
+    line = _contact_line(profile)
+    if not line:
+        return body
+    lines = body.rstrip().splitlines()
+    # Drop any trailing contact-ish lines the model produced (keep the name line).
+    while lines and _CONTACTISH.search(lines[-1]):
+        lines.pop()
+    return "\n".join(lines).rstrip() + "\n" + line
+
+
 def _clean_body(text: str) -> str:
     """Repair the escape artifacts models routinely emit inside JSON strings.
 
@@ -43,13 +78,22 @@ def _selected_evidence(plan: EmailPlan, profile: CandidateProfile, company: Comp
 def _render(plan: EmailPlan, profile: CandidateProfile, company: CompanyProfile) -> str:
     claims, facts = _selected_evidence(plan, profile, company)
 
+    c = profile.contact
+    sig = [f"  name: {profile.full_name}"]
+    for label, val in (("email", c.email or profile.contact_email), ("phone", c.phone),
+                       ("linkedin", c.linkedin), ("github", c.github), ("portfolio", c.portfolio)):
+        if val:
+            sig.append(f"  {label}: {val}")
     lines = [
-        "CANDIDATE IDENTITY (for the signature only):",
-        f"  name: {profile.full_name}",
+        "CANDIDATE IDENTITY — build the sign-off from this. Put the name on its own",
+        "line, then a compact contact line (email · phone · github · linkedin). Include",
+        "only fields present below; do not invent any.",
+        *sig,
         f"  headline: {profile.headline}",
     ]
-    if profile.contact_email:
-        lines.append(f"  email: {profile.contact_email}")
+    if c.location:
+        lines.append(f"  candidate_location: {c.location}  "
+                     "(if this shares a city with the company, that's a genuine reason to reach out — use it)")
     lines += [f"\nCOMPANY: {company.name}", "", "PLAN:", f"  angle: {plan.angle}",
               f"  value_to_them: {plan.value_to_them}",
               f"  proof_point (LEAD WITH THIS): {plan.proof_point}",
@@ -65,9 +109,10 @@ def _render(plan: EmailPlan, profile: CandidateProfile, company: CompanyProfile)
         lines.append("  banned_phrases (never use): " + "; ".join(plan.banned_phrases))
 
     lines += ["", "YOUR EVIDENCE — you may state ONLY what these support:", "  CLAIMS (candidate):"]
-    for c in claims:
-        ach = f" [outcome: {c.achievement}]" if c.achievement else ""
-        lines.append(f"    {c.id}: {c.summary}{ach}")
+    for cl in claims:
+        ach = f" [outcome: {cl.achievement}]" if cl.achievement else ""
+        link = f" [link you MAY include: {cl.link}]" if cl.link else ""
+        lines.append(f"    {cl.id}: {cl.summary}{ach}{link}")
     lines.append("  FACTS (company):")
     for f in facts:
         lines.append(f"    {f.id}: {f.statement}")
@@ -85,7 +130,7 @@ def write(plan: EmailPlan, profile: CandidateProfile, company: CompanyProfile) -
         user=_render(plan, profile, company),
         schema=EmailDraft,
     )
-    draft.body = _clean_body(draft.body)
+    draft.body = _ensure_signature(_clean_body(draft.body), profile)
     draft.opening_line = _clean_body(draft.opening_line)
     draft.subject = draft.subject.replace("\\n", " ").strip()
     return draft
