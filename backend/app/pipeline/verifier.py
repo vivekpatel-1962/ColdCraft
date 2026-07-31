@@ -29,7 +29,9 @@ log = logging.getLogger("coldmail.verifier")
 
 PROMPT_PATH = Path(__file__).resolve().parent.parent / "prompts" / "verifier.md"
 
-WORD_MIN, WORD_MAX = 90, 140
+# Outreach is tight; an application carries a self-introduction + range + a resume
+# reference, so it legitimately runs longer.
+WORD_BAND = {"outreach": (90, 145), "application": (120, 200)}
 REPETITION_THRESHOLD = 0.70  # difflib ratio above which two openers are "too similar"
 MAX_SENTENCE_WORDS = 28      # beyond this a sentence reads as a spec sheet, not an email
 MAX_PARAGRAPH_SENTENCES = 3
@@ -200,7 +202,8 @@ def verify(
     # so the signature and any inline links don't inflate the count, while a real
     # sentence that happens to contain a link still has its words counted.
     word_count = len(_prose_only(draft.body).split())
-    within = WORD_MIN <= word_count <= WORD_MAX
+    lo, hi = WORD_BAND.get(plan.email_kind.value, WORD_BAND["outreach"])
+    within = lo <= word_count <= hi
     body_lower = draft.body.lower()
     banned_hits = [p for p in plan.banned_phrases if p.lower() in body_lower]
     repetition = _opener_repetition(draft.opening_line, history_openers)

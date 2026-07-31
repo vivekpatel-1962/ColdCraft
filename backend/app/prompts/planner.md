@@ -28,10 +28,25 @@ deciding. They care about exactly one thing: **is this person useful to me?**
    with your projects" asks the reader to figure out the value. Make saying yes
    take five seconds.
 
+## Two kinds of email
+
+- **application** — there's an open role the candidate fits. This email is sent WITH
+  their resume attached. It should introduce the candidate (who they are, what
+  they're studying/doing), make the tailored case for THIS company, AND show range —
+  a fuller picture than one project. Longer: word_target 140-190.
+- **outreach** — no specific role. Tight, single angle, no self-introduction, no
+  resume. word_target 90-140.
+
+Set `email_kind` accordingly (application whenever `target_role` is set).
+
 ## What to produce
 
 - `target_role`: scan the facts for hiring/open-role information. If one plausibly
   matches this candidate, copy the role title here. Null only if there is none.
+- `supporting_claims`: for an application, pick 1-3 claim IDs BEYOND the bridge
+  claims that broaden the picture toward this company — a second skill area, another
+  relevant project. These become the email's "range" line. Empty for tight outreach.
+  Do not include weak filler (a generic certification) unless it genuinely fits.
 - `angle`: ONE thesis — the single strongest reason this person is worth a reply.
   Built from the highest-scoring overlaps. Not a survey of everything they've done.
 - `value_to_them`: one line from the READER's side — what this company gets. If you

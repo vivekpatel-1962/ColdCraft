@@ -67,62 +67,86 @@ def _clean_body(text: str) -> str:
 
 
 def _selected_evidence(plan: EmailPlan, profile: CandidateProfile, company: CompanyProfile):
-    """The closed world: only the claims/facts the plan's bridges name."""
-    claim_ids = {b.claim_id for b in plan.bridges}
+    """Company side stays closed-world (only facts the plan named — the writer knows
+    least about the company, so that's where invention risk is highest). Candidate
+    side is now open-book: the writer sees the whole resume, because an application
+    email should introduce the person and show range, not just the matched sliver.
+    Grounding is still enforced downstream by the verifier, per sentence."""
     fact_ids = {b.fact_id for b in plan.bridges}
-    claims = [c for c in profile.claims if c.id in claim_ids]
+    claims = list(profile.claims)
     facts = [f for f in company.facts if f.id in fact_ids]
     return claims, facts
 
 
+def _fmt_claim(cl) -> str:
+    ach = f" [outcome: {cl.achievement}]" if cl.achievement else ""
+    link = f" [link you MAY cite: {cl.link}]" if cl.link else ""
+    return f"    {cl.id} [{cl.type.value}/{cl.strength.value}] {cl.name}: {cl.summary}{ach}{link}"
+
+
 def _render(plan: EmailPlan, profile: CandidateProfile, company: CompanyProfile) -> str:
-    claims, facts = _selected_evidence(plan, profile, company)
+    _, facts = _selected_evidence(plan, profile, company)
+    focus_ids = {b.claim_id for b in plan.bridges}
+    support_ids = set(plan.supporting_claims)
 
     c = profile.contact
-    sig = [f"  name: {profile.full_name}"]
-    for label, val in (("email", c.email or profile.contact_email), ("phone", c.phone),
-                       ("linkedin", c.linkedin), ("github", c.github), ("portfolio", c.portfolio)):
-        if val:
-            sig.append(f"  {label}: {val}")
-    lines = [
-        "CANDIDATE IDENTITY — build the sign-off from this. Put the name on its own",
-        "line, then a compact contact line (email · phone · github · linkedin). Include",
-        "only fields present below; do not invent any.",
-        *sig,
-        f"  headline: {profile.headline}",
-    ]
+    lines = ["CANDIDATE IDENTITY (name goes in the sign-off; contact line is appended for you):",
+             f"  name: {profile.full_name}", f"  headline: {profile.headline}"]
+    if profile.status:
+        lines.append(f"  status: {profile.status}  (use this in the self-introduction)")
     if c.location:
-        lines.append(f"  candidate_location: {c.location}  "
-                     "(if this shares a city with the company, that's a genuine reason to reach out — use it)")
-    lines += [f"\nCOMPANY: {company.name}", "", "PLAN:", f"  angle: {plan.angle}",
+        lines.append(f"  location: {c.location}  (if it shares a city with the company, that's a real reason to mention)")
+
+    edu = [cl for cl in profile.claims if cl.type.value == "education"]
+    if edu:
+        lines.append("  education (for the self-introduction):")
+        for cl in edu:
+            lines.append(f"    - {cl.name}: {cl.summary}")
+    if profile.primary_skills:
+        lines.append(f"  primary_skills (draw the breadth line from these): {', '.join(profile.primary_skills)}")
+
+    lines += ["", f"COMPANY: {company.name} — {company.one_liner}", "", "PLAN:",
+              f"  email_kind: {plan.email_kind.value}",
+              f"  angle: {plan.angle}",
               f"  value_to_them: {plan.value_to_them}",
-              f"  proof_point (LEAD WITH THIS): {plan.proof_point}",
+              f"  proof_point (LEAD THE FIT PARAGRAPH WITH THIS): {plan.proof_point}",
               f"  target_role: {plan.target_role or '(none — not an application)'}",
               f"  recipient_type: {plan.recipient_type.value}",
               f"  tone: {plan.tone.value}", f"  opening_hook: {plan.opening_hook}",
               f"  call_to_action: {plan.call_to_action}", f"  word_target: {plan.word_target}"]
-
-    lines.append("  bridges:")
+    lines.append("  bridges (the tailored fit — build the fit paragraph from these):")
     for b in plan.bridges:
         lines.append(f"    - {b.claim_id} x {b.fact_id}: {b.point}")
     if plan.banned_phrases:
         lines.append("  banned_phrases (never use): " + "; ".join(plan.banned_phrases))
 
-    lines += ["", "YOUR EVIDENCE — you may state ONLY what these support:", "  CLAIMS (candidate):"]
-    for cl in claims:
-        ach = f" [outcome: {cl.achievement}]" if cl.achievement else ""
-        link = f" [link you MAY include: {cl.link}]" if cl.link else ""
-        lines.append(f"    {cl.id}: {cl.summary}{ach}{link}")
-    lines.append("  FACTS (company):")
+    # Full candidate ledger, tagged by role in the email.
+    lines += ["", "CANDIDATE CLAIMS — state ONLY what these support (every sentence must trace to one):"]
+    lines.append("  FOCUS (the fit paragraph):")
+    for cl in profile.claims:
+        if cl.id in focus_ids:
+            lines.append(_fmt_claim(cl))
+    if support_ids:
+        lines.append("  SUPPORTING (the breadth paragraph — mention briefly):")
+        for cl in profile.claims:
+            if cl.id in support_ids:
+                lines.append(_fmt_claim(cl))
+    others = [cl for cl in profile.claims if cl.id not in focus_ids and cl.id not in support_ids]
+    if others:
+        lines.append("  OTHER (available for range if it helps; do not force):")
+        for cl in others:
+            lines.append(_fmt_claim(cl))
+
+    lines.append("\n  COMPANY FACTS (the only company facts you may state):")
     for f in facts:
         lines.append(f"    {f.id}: {f.statement}")
     return "\n".join(lines)
 
 
 def write(plan: EmailPlan, profile: CandidateProfile, company: CompanyProfile) -> EmailDraft:
-    claims, facts = _selected_evidence(plan, profile, company)
-    log.info("closed-world writer: %d claims + %d facts selected from plan bridges",
-             len(claims), len(facts))
+    _, facts = _selected_evidence(plan, profile, company)
+    log.info("writer: kind=%s, full candidate ledger (%d claims), %d company facts (closed)",
+             plan.email_kind.value, len(profile.claims), len(facts))
     system = PROMPT_PATH.read_text(encoding="utf-8")
     draft = complete_json(
         stage="writer",

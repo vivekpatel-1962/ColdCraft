@@ -25,6 +25,11 @@ class RecipientType(str, Enum):
     unknown = "unknown"
 
 
+class EmailKind(str, Enum):
+    application = "application"  # applying for a role: introduce yourself, attach resume, show range
+    outreach = "outreach"        # cold outreach, no specific role: tighter, one angle
+
+
 class Bridge(BaseModel):
     claim_id: str = Field(description="Candidate claim ID this bridge uses")
     fact_id: str = Field(description="Company fact ID this bridge connects to")
@@ -32,6 +37,11 @@ class Bridge(BaseModel):
 
 
 class EmailPlan(BaseModel):
+    email_kind: EmailKind = Field(
+        default=EmailKind.outreach,
+        description="application when target_role is set (introduce the candidate, show range, "
+                    "reference the attached resume); outreach otherwise (tighter, single angle).",
+    )
     angle: str = Field(
         description="The ONE thesis — the single strongest reason to reach out. Everything serves this."
     )
@@ -55,6 +65,12 @@ class EmailPlan(BaseModel):
     bridges: list[Bridge] = Field(
         description="2-3 claim->fact bridges that build the angle. Each references real IDs."
     )
+    supporting_claims: list[str] = Field(
+        default_factory=list,
+        description="For an application: 1-3 ADDITIONAL claim IDs (beyond the bridges) to mention "
+                    "briefly, to show range — pick ones that broaden the picture toward this company's "
+                    "domain (e.g. a relevant project or a second skill area). Empty for tight outreach.",
+    )
     tone: Tone
     opening_hook: str = Field(
         description="The first line. Must earn its place: a specific point of relevance or insight. "
@@ -67,6 +83,11 @@ class EmailPlan(BaseModel):
     )
     excluded_notable: list[str] = Field(
         default_factory=list,
-        description="Strong candidate claims deliberately left OUT to keep one angle, each with a short why.",
+        description="Strong candidate claims deliberately left OUT, each with a short why. For an "
+                    "application this is smaller (breadth is wanted); for outreach it enforces focus.",
     )
-    word_target: int = Field(default=120, ge=90, le=140, description="Target email length, 90-140 words.")
+    word_target: int = Field(
+        default=120, ge=90, le=200,
+        description="Target length. Outreach: 90-140. Application (intro + range + fit + resume "
+                    "reference): 140-190 — a proper introduction needs the room.",
+    )
