@@ -12,11 +12,23 @@ from pydantic import BaseModel, Field
 
 # ---- Stage 5: writer ----
 
-class EmailDraft(BaseModel):
+class WriterLLM(BaseModel):
+    """What the model returns. This is the schema sent to the provider, so it must
+    contain nothing the model isn't supposed to produce."""
     subject: str = Field(description="Concrete, specific, <= 8 words. No clickbait.")
     body: str = Field(description="The email body, 90-140 words, signed with the candidate's name.")
     opening_line: str = Field(
         description="The exact first sentence of the body, verbatim — used for the repetition check."
+    )
+
+
+class EmailDraft(WriterLLM):
+    """The model's output after the writer's deterministic passes (escape repair,
+    canonical signature, recruiter plain-language rewrite). Same split as
+    VerifierLLM -> VerifierReport: what the model said vs. what we ship."""
+    plain_language_edits: list[str] = Field(
+        default_factory=list,
+        description="Engineer-only terms the deterministic pass translated for a recruiter",
     )
 
 

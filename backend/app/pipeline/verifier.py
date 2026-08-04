@@ -127,7 +127,12 @@ MAX_JARGON_FOR_RECRUITER = 2
 
 
 def _jargon_issues(draft: EmailDraft, plan: EmailPlan) -> list[str]:
-    """A recruiter who hits a term they can't parse skims instead of reading."""
+    """A recruiter who hits a term they can't parse skims instead of reading.
+
+    The writer now runs a deterministic plain-language pass over recruiter drafts
+    (`pipeline/plain_language.py`), so a hit here means a term the translation
+    table doesn't know yet — the fix is usually to add it there, not to re-prompt.
+    """
     if plan.recipient_type != RecipientType.recruiter:
         return []
     low = draft.body.lower()

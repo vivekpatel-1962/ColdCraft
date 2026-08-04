@@ -10,7 +10,9 @@ import re
 from pathlib import Path
 
 from app.llm.client import complete_json
-from app.models import CandidateProfile, CompanyProfile, EmailDraft, EmailPlan
+from app.models import CandidateProfile, CompanyProfile, EmailDraft, EmailPlan, RecipientType
+from app.models.email import WriterLLM
+from app.pipeline.plain_language import simplify_for_recruiter
 
 log = logging.getLogger("coldmail.writer")
 
@@ -148,13 +150,28 @@ def write(plan: EmailPlan, profile: CandidateProfile, company: CompanyProfile) -
     log.info("writer: kind=%s, full candidate ledger (%d claims), %d company facts (closed)",
              plan.email_kind.value, len(profile.claims), len(facts))
     system = PROMPT_PATH.read_text(encoding="utf-8")
-    draft = complete_json(
+    out = complete_json(
         stage="writer",
         system=system,
         user=_render(plan, profile, company),
-        schema=EmailDraft,
+        schema=WriterLLM,
     )
-    draft.body = _ensure_signature(_clean_body(draft.body), profile)
-    draft.opening_line = _clean_body(draft.opening_line)
-    draft.subject = draft.subject.replace("\\n", " ").strip()
-    return draft
+
+    body = _clean_body(out.body)
+    opening = _clean_body(out.opening_line)
+    subject = out.subject.replace("\\n", " ").strip()
+
+    # Plain-language pass BEFORE the signature is appended, so contact details and
+    # repo URLs are never in scope for a rewrite. The prompt already asks for this
+    # translation; this makes it hold on every run rather than most runs.
+    recruiter = plan.recipient_type == RecipientType.recruiter
+    body, edits = simplify_for_recruiter(body, recruiter)
+    opening, _ = simplify_for_recruiter(opening, recruiter)
+    subject, _ = simplify_for_recruiter(subject, recruiter)
+
+    return EmailDraft(
+        subject=subject,
+        body=_ensure_signature(body, profile),
+        opening_line=opening,
+        plain_language_edits=edits,
+    )

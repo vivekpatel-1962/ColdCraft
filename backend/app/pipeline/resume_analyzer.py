@@ -68,5 +68,7 @@ def analyze_resume(path: Path) -> tuple[int, CandidateProfile]:
         resume_filename=path.name,
         raw_text=raw_text,
         profile_json=profile.model_dump_json(indent=2),
+        # Remembered so the send stage can attach this exact file later.
+        resume_path=str(path.resolve()),
     )
     return profile_id, profile

@@ -60,6 +60,32 @@ CREATE TABLE IF NOT EXISTS emails (
 );
 """
 
+# Columns added after the initial schema shipped. SQLite has no "ADD COLUMN IF NOT
+# EXISTS", so we diff against PRAGMA table_info — an existing coldmail.db (runs #1-8)
+# upgrades in place rather than being rebuilt.
+MIGRATIONS: dict[str, dict[str, str]] = {
+    "emails": {
+        "recipient": "TEXT",             # where it goes — was previously nowhere to store
+        "sent_message_id": "TEXT",       # Gmail message id, the send receipt
+        "sent_thread_id": "TEXT",
+        "attachment_filename": "TEXT",   # what actually rode along (usually the resume)
+    },
+    "runs": {
+        "recipient_email": "TEXT",       # resolved at intake; drives recipient_type
+    },
+    "candidate_profiles": {
+        "resume_path": "TEXT",           # the PDF to attach when sending
+    },
+}
+
+
+def _migrate(conn) -> None:
+    for table, columns in MIGRATIONS.items():
+        existing = {r["name"] for r in conn.execute(f"PRAGMA table_info({table})")}
+        for name, decl in columns.items():
+            if name not in existing:
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN {name} {decl}")
+
 
 @contextmanager
 def get_conn():
@@ -77,14 +103,18 @@ def get_conn():
 def init_db() -> None:
     with get_conn() as conn:
         conn.executescript(SCHEMA)
+        _migrate(conn)
 
 
-def save_candidate_profile(resume_filename: str, raw_text: str, profile_json: str) -> int:
+def save_candidate_profile(
+    resume_filename: str, raw_text: str, profile_json: str, resume_path: str | None = None
+) -> int:
     with get_conn() as conn:
         conn.execute("UPDATE candidate_profiles SET is_active = 0")
         cur = conn.execute(
-            "INSERT INTO candidate_profiles (resume_filename, raw_text, profile_json) VALUES (?, ?, ?)",
-            (resume_filename, raw_text, profile_json),
+            "INSERT INTO candidate_profiles (resume_filename, raw_text, profile_json, resume_path) "
+            "VALUES (?, ?, ?, ?)",
+            (resume_filename, raw_text, profile_json, resume_path),
         )
         return cur.lastrowid
 
@@ -132,13 +162,16 @@ def get_latest_company_profile(domain: str) -> sqlite3.Row | None:
 
 
 def create_run(
-    candidate_profile_id: int, company_profile_id: int, job_posting_url: str | None = None
+    candidate_profile_id: int,
+    company_profile_id: int,
+    job_posting_url: str | None = None,
+    recipient_email: str | None = None,
 ) -> int:
     with get_conn() as conn:
         cur = conn.execute(
-            "INSERT INTO runs (candidate_profile_id, company_profile_id, job_posting_url) "
-            "VALUES (?, ?, ?)",
-            (candidate_profile_id, company_profile_id, job_posting_url),
+            "INSERT INTO runs (candidate_profile_id, company_profile_id, job_posting_url, "
+            "recipient_email) VALUES (?, ?, ?, ?)",
+            (candidate_profile_id, company_profile_id, job_posting_url, recipient_email),
         )
         return cur.lastrowid
 
@@ -186,17 +219,30 @@ def get_latest_planned_run(domain: str) -> sqlite3.Row | None:
         ).fetchone()
 
 
-def save_draft(run_id: int, draft_json: str, subject: str, body: str, opening_line: str) -> int:
-    """Store the writer's draft on the run and as an emails row (generated_body)."""
+def save_draft(
+    run_id: int,
+    draft_json: str,
+    subject: str,
+    body: str,
+    opening_line: str,
+    recipient: str | None = None,
+) -> int:
+    """Store the writer's draft on the run and as an emails row (generated_body).
+
+    The recipient defaults to the one resolved at intake and stored on the run —
+    a draft that doesn't know where it's going can't be sent later."""
     with get_conn() as conn:
         conn.execute(
             "UPDATE runs SET draft_json = ?, status = 'drafted' WHERE id = ?",
             (draft_json, run_id),
         )
+        if recipient is None:
+            row = conn.execute("SELECT recipient_email FROM runs WHERE id = ?", (run_id,)).fetchone()
+            recipient = row["recipient_email"] if row else None
         cur = conn.execute(
-            "INSERT INTO emails (run_id, subject, generated_body, opening_line, status) "
-            "VALUES (?, ?, ?, ?, 'draft')",
-            (run_id, subject, body, opening_line),
+            "INSERT INTO emails (run_id, subject, generated_body, opening_line, recipient, status) "
+            "VALUES (?, ?, ?, ?, ?, 'draft')",
+            (run_id, subject, body, opening_line, recipient),
         )
         return cur.lastrowid
 
@@ -233,8 +279,9 @@ def list_companies() -> list[sqlite3.Row]:
 def list_runs(limit: int = 50) -> list[sqlite3.Row]:
     with get_conn() as conn:
         return conn.execute(
-            "SELECT r.id, r.status, r.created_at, r.job_posting_url, "
-            "       c.domain, c.name AS company_name, e.id AS email_id, e.subject, e.replied "
+            "SELECT r.id, r.status, r.created_at, r.job_posting_url, r.recipient_email, "
+            "       c.domain, c.name AS company_name, e.id AS email_id, e.subject, e.replied, "
+            "       e.status AS email_status, e.recipient, e.sent_at "
             "FROM runs r "
             "JOIN company_profiles cp ON cp.id = r.company_profile_id "
             "JOIN companies c ON c.id = cp.company_id "
@@ -279,6 +326,39 @@ def update_email(email_id: int, final_body: str | None = None, status: str | Non
     params.append(email_id)
     with get_conn() as conn:
         conn.execute(f"UPDATE emails SET {', '.join(sets)} WHERE id = ?", params)
+
+
+def set_email_recipient(email_id: int, recipient: str) -> None:
+    with get_conn() as conn:
+        conn.execute("UPDATE emails SET recipient = ? WHERE id = ?", (recipient, email_id))
+
+
+def mark_email_sent(
+    email_id: int,
+    recipient: str,
+    subject: str,
+    body: str,
+    message_id: str | None,
+    thread_id: str | None,
+    attachment_filename: str | None,
+) -> None:
+    """The send receipt. `final_body` is set to exactly what went out, so the
+    edit-learning diff (generated vs final) reflects the real sent text."""
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE emails SET status = 'sent', sent_at = datetime('now'), recipient = ?, "
+            "subject = ?, final_body = ?, sent_message_id = ?, sent_thread_id = ?, "
+            "attachment_filename = ? WHERE id = ?",
+            (recipient, subject, body, message_id, thread_id, attachment_filename, email_id),
+        )
+
+
+def get_run_for_email(email_id: int) -> sqlite3.Row | None:
+    with get_conn() as conn:
+        return conn.execute(
+            "SELECT r.* FROM runs r JOIN emails e ON e.run_id = r.id WHERE e.id = ?",
+            (email_id,),
+        ).fetchone()
 
 
 def set_email_replied(email_id: int, replied: bool) -> None:

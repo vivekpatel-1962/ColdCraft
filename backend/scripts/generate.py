@@ -89,7 +89,7 @@ def main() -> None:
 
     # ---- stages 3-6 ----
     comp_row = database.get_latest_company_profile(domain_of(res.company_url))
-    run_id = database.create_run(cand_row["id"], comp_row["id"], None)
+    run_id = database.create_run(cand_row["id"], comp_row["id"], None, res.recipient_email)
 
     overlaps = match(profile, company)
     database.save_overlaps(run_id, overlaps.model_dump_json(indent=2))
@@ -104,8 +104,9 @@ def main() -> None:
     history = database.get_recent_opening_lines()
     draft = write(plan, profile, company)
     report = verify(draft, profile, company, plan, history)
-    database.save_draft(run_id, draft.model_dump_json(indent=2),
-                        draft.subject, draft.body, draft.opening_line)
+    email_id = database.save_draft(run_id, draft.model_dump_json(indent=2),
+                                   draft.subject, draft.body, draft.opening_line,
+                                   recipient=res.recipient_email)
     database.save_verifier(run_id, report.model_dump_json(indent=2))
 
     print("\n" + "=" * 62)
@@ -119,7 +120,9 @@ def main() -> None:
     unsupported = [c for c in report.claim_checks if not c.supported]
     for c in unsupported:
         print(f"  UNSUPPORTED: {c.sentence!r} — {c.issue}")
-    print(f"\nSaved as run #{run_id}. Nothing was sent — copy the email above to send it.")
+    print(f"\nSaved as run #{run_id} (email #{email_id}). Nothing was sent.")
+    print(f"To send it — you'll see the full envelope and have to confirm:\n"
+          f"    python -m scripts.send_email {email_id}")
 
 
 if __name__ == "__main__":

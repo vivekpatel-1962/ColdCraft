@@ -8,3 +8,8 @@ httpx
 trafilatura
 lxml_html_clean
 pyyaml
+pillow
+# Sending (Gmail API). Only the OAuth dance is borrowed; the send itself is one
+# httpx POST, so google-api-python-client is deliberately not a dependency.
+google-auth
+google-auth-oauthlib

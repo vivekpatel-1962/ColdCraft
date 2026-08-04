@@ -130,4 +130,14 @@ th { color: var(--muted); font-weight: 500; }
 .verifier h4 { margin-top: 0; }
 .verifier ul { padding-left: 16px; }
 
+.send { margin-top: 18px; border-top: 1px solid var(--line); padding-top: 12px; }
+.send h4 { margin-bottom: 6px; }
+.send code { background: var(--panel-2); padding: 1px 5px; border-radius: 4px; }
+.envelope {
+  margin-top: 10px; border: 1px solid var(--accent); border-radius: 8px;
+  padding: 10px 12px; background: var(--panel-2);
+}
+.envelope p { margin: 3px 0; }
+.envelope button { margin-top: 10px; }
+
 details summary { cursor: pointer; }

@@ -1,5 +1,8 @@
 # Secrets
 .env
+# Gmail OAuth: the client secret and (worse) the refresh token
+credentials.json
+.gmail_token.json
 
 # Python
 __pycache__/

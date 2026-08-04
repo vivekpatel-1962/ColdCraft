@@ -31,6 +31,20 @@ FALLBACK_MODEL = os.getenv("FALLBACK_MODEL", "")
 
 DATABASE_PATH = (BACKEND_DIR / os.getenv("DATABASE_PATH", "../data/coldmail.db")).resolve()
 
+# ---- Sending (Gmail API) ----
+# OAuth client secret downloaded from Google Cloud (Desktop app type). The token
+# is written next to it after the one-time `python -m scripts.gmail_auth` run.
+# Both are gitignored: the client secret is a credential, the token is worse.
+GMAIL_CREDENTIALS_PATH = (
+    BACKEND_DIR / os.getenv("GMAIL_CREDENTIALS_PATH", "credentials.json")
+).resolve()
+GMAIL_TOKEN_PATH = (BACKEND_DIR / os.getenv("GMAIL_TOKEN_PATH", ".gmail_token.json")).resolve()
+
+# The resume PDF to attach. The DB stores the path used at analyze time; this is
+# the override / fallback for profiles analyzed before that column existed.
+_resume = os.getenv("RESUME_PATH", "")
+RESUME_PATH = (BACKEND_DIR / _resume).resolve() if _resume else None
+
 # Stage → role mapping. Judgment stages must not silently degrade to a weaker
 # fallback model (queue-and-wait instead); extraction stages may fall back.
 EXTRACTION_STAGES = {"company_summarizer", "verifier", "resume_analyzer", "poster_reader"}

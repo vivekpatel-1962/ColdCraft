@@ -6,10 +6,11 @@ from .company import (
     PageManifestEntry,
     ProfileTier,
 )
-from .email import ClaimCheck, EmailDraft, Verdict, VerifierLLM, VerifierReport
+from .email import ClaimCheck, EmailDraft, Verdict, VerifierLLM, VerifierReport, WriterLLM
 from .intake import HiringPoster, IntakeResult, IntakeSource
 from .matching import Overlap, OverlapKind, RankedOverlaps
 from .plan import Bridge, EmailKind, EmailPlan, RecipientType, Tone
+from .send import Attachment, GmailStatus, SendEnvelope, SendResult
 
 __all__ = [
     "CandidateProfile",
@@ -35,7 +36,12 @@ __all__ = [
     "Verdict",
     "VerifierLLM",
     "VerifierReport",
+    "WriterLLM",
     "HiringPoster",
     "IntakeResult",
     "IntakeSource",
+    "Attachment",
+    "GmailStatus",
+    "SendEnvelope",
+    "SendResult",
 ]

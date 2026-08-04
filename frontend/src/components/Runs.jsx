@@ -8,6 +8,9 @@ export default function Runs() {
   const [busy, setBusy] = useState(null)
   const [err, setErr] = useState(null)
   const [run, setRun] = useState(null)
+  // Captured up front: it calibrates the planner (hr@ -> recruiter language) and
+  // it's the address the draft is later sent to.
+  const [recipient, setRecipient] = useState('')
 
   const loadRuns = () => api.listRuns().then(setRuns).catch((e) => setErr(e.message))
   useEffect(() => {
@@ -20,7 +23,7 @@ export default function Runs() {
     if (!domain) return
     setBusy('run'); setErr(null)
     try {
-      const r = await api.createRun(domain)
+      const r = await api.createRun(domain, null, recipient)
       await loadRuns()
       setRun(await api.getRun(r.run_id))
     } catch (e) { setErr(e.message) } finally { setBusy(null) }
@@ -48,6 +51,10 @@ export default function Runs() {
         <select value={domain} onChange={(e) => setDomain(e.target.value)}>
           {companies.map((c) => <option key={c.domain} value={c.domain}>{c.domain}</option>)}
         </select>
+        <input
+          type="email" placeholder="recipient (optional, e.g. hr@company.com)"
+          value={recipient} onChange={(e) => setRecipient(e.target.value)}
+        />
         <button className="primary" disabled={busy === 'run' || !domain}>
           {busy === 'run' ? 'Matching & planning…' : 'New run (match + plan)'}
         </button>
@@ -177,6 +184,17 @@ function DraftPanel({ run, verifier, onRefresh }) {
       </div>
       {note && <p className="ok-note small">{note}</p>}
 
+      {run.draft.plain_language_edits?.length > 0 && (
+        <details>
+          <summary className="small muted">
+            plain-language pass translated {run.draft.plain_language_edits.length} engineer term(s) for this recruiter
+          </summary>
+          <ul className="small muted">
+            {run.draft.plain_language_edits.map((e, i) => <li key={i}>{e}</li>)}
+          </ul>
+        </details>
+      )}
+
       {verifier && (
         <div className={`verifier ${verifier.verdict}`}>
           <h4>Verifier: {verifier.verdict.toUpperCase()}</h4>
@@ -211,6 +229,118 @@ function DraftPanel({ run, verifier, onRefresh }) {
           </details>
           {verifier.notes && <p className="small muted">{verifier.notes}</p>}
         </div>
+      )}
+
+      <SendPanel run={run} email={email} edited={edited} onRefresh={onRefresh} />
+    </div>
+  )
+}
+
+/* Send is deliberately two steps: fetch the envelope (what would actually go
+   out, warnings and all), look at it, then confirm. There is no one-click send. */
+function SendPanel({ run, email, edited, onRefresh }) {
+  const [status, setStatus] = useState(null)
+  const [recipient, setRecipient] = useState(email?.recipient || run.recipient_email || '')
+  const [env, setEnv] = useState(null)
+  const [dryRun, setDryRun] = useState(false)
+  const [busy, setBusy] = useState(null)
+  const [err, setErr] = useState(null)
+  const [sent, setSent] = useState(null)
+
+  useEffect(() => { api.sendStatus().then(setStatus).catch(() => {}) }, [])
+
+  const alreadySent = email?.status === 'sent'
+
+  async function review() {
+    setBusy('review'); setErr(null); setSent(null)
+    try { setEnv(await api.getEnvelope(email.id, recipient)) }
+    catch (e) { setErr(e.message) } finally { setBusy(null) }
+  }
+
+  async function send() {
+    const what = dryRun ? 'Dry run (nothing will be transmitted)' : `Really send to ${env.to}?`
+    if (!window.confirm(`${what}\n\nSubject: ${env.subject}\nFrom: ${env.from_address}` +
+      (env.attachment ? `\nAttached: ${env.attachment.filename}` : '\nNo attachment'))) return
+    setBusy('send'); setErr(null)
+    try {
+      const res = await api.sendEmail(email.id, {
+        recipient: recipient || null,
+        dry_run: dryRun,
+        override_verdict: env.blockers.some((b) => b.startsWith('Verifier verdict is FAIL')),
+        allow_resend: env.blockers.some((b) => b.startsWith('Already sent')),
+      })
+      setSent(res); setEnv(null)
+      if (!res.dry_run) onRefresh()
+    } catch (e) { setErr(e.message) } finally { setBusy(null) }
+  }
+
+  return (
+    <div className="send">
+      <h4>Send</h4>
+
+      {status && !status.authorized && (
+        <p className="small bad">
+          Gmail not connected — {status.detail.replace(/\.$/, '')}. Run{' '}
+          <code>python -m scripts.gmail_auth</code> in backend/, then reload.
+        </p>
+      )}
+      {status?.authorized && (
+        <p className="small muted">Sends as <b>{status.address || 'the authorized account'}</b>.</p>
+      )}
+      {alreadySent && (
+        <p className="small">Already sent to {email.recipient} on {email.sent_at}.</p>
+      )}
+      {edited && <p className="small muted">You have unsaved edits — save them first, or the generated draft is what goes out.</p>}
+
+      <div className="add-form">
+        <input
+          type="email" placeholder="recipient@company.com" value={recipient}
+          onChange={(e) => { setRecipient(e.target.value); setEnv(null) }}
+        />
+        <button onClick={review} disabled={busy === 'review'}>
+          {busy === 'review' ? 'Building…' : 'Review what will be sent'}
+        </button>
+        <label className="small muted">
+          <input type="checkbox" checked={dryRun} onChange={(e) => setDryRun(e.target.checked)} />
+          {' '}dry run
+        </label>
+      </div>
+
+      {err && <div className="banner error">{err}</div>}
+
+      {env && (
+        <div className="envelope">
+          <p className="small"><b>From:</b>{' '}
+            {env.from_address
+              ? (env.from_name ? `${env.from_name} <${env.from_address}>` : env.from_address)
+              : <span className="bad">— Gmail not connected —</span>}
+          </p>
+          <p className="small"><b>To:</b> {env.to || <span className="bad">— none —</span>}</p>
+          {env.reply_to && <p className="small"><b>Reply-To:</b> {env.reply_to}</p>}
+          <p className="small"><b>Subject:</b> {env.subject}</p>
+          <p className="small"><b>Attachment:</b>{' '}
+            {env.attachment
+              ? `${env.attachment.filename} (${Math.round(env.attachment.size_bytes / 1024)} KB)`
+              : <span className="muted">none</span>}
+          </p>
+          {env.warnings.map((w, i) => <p key={i} className="small">! {w}</p>)}
+          {env.blockers.map((b, i) => <p key={i} className="small bad">✗ {b}</p>)}
+          <button
+            className="primary" onClick={send}
+            disabled={busy === 'send' || (!env.sendable && !dryRun && env.blockers.some(
+              (b) => !b.startsWith('Verifier verdict is FAIL') && !b.startsWith('Already sent')))}
+          >
+            {busy === 'send' ? 'Sending…' : dryRun ? 'Run dry send' : `Send to ${env.to || '—'}`}
+          </button>
+        </div>
+      )}
+
+      {sent && (
+        <p className={`small ${sent.dry_run ? 'muted' : 'ok-note'}`}>
+          {sent.dry_run
+            ? `Dry run OK — would have gone to ${sent.to} from ${sent.from_address}. Nothing was transmitted.`
+            : `Sent to ${sent.to} at ${sent.sent_at} (gmail id ${sent.message_id}).`}
+        </p>
       )}
     </div>
   )

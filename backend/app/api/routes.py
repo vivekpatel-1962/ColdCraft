@@ -18,6 +18,9 @@ from app.pipeline.matcher import match
 from app.pipeline.planner import plan as make_plan
 from app.pipeline.verifier import verify
 from app.pipeline.writer import write
+from app.send import compose, gmail
+from app.send.compose import NotSendable
+from app.send.gmail import NotAuthorized, SendError
 
 log = logging.getLogger("coldmail.api")
 
@@ -34,15 +37,29 @@ class AnalyzeCompanyRequest(BaseModel):
 class CreateRunRequest(BaseModel):
     domain: str
     job_url: str | None = None
+    recipient_email: str | None = None
 
 
 class UpdateEmailRequest(BaseModel):
     final_body: str | None = None
     status: str | None = None
+    recipient: str | None = None
 
 
 class OutcomeRequest(BaseModel):
     replied: bool
+
+
+class SendRequest(BaseModel):
+    """The confirmation half of draft-then-confirm.
+
+    `confirm` is not a formality — the send path refuses without it, so a stray
+    POST with an empty body cannot put mail in front of a stranger."""
+    confirm: bool = False
+    recipient: str | None = None
+    override_verdict: bool = False   # send anyway when the verifier said FAIL
+    allow_resend: bool = False       # send again when this email already went out
+    dry_run: bool = False            # render the MIME, report, transmit nothing
 
 
 def _llm_guard(fn, *args, **kwargs):
@@ -170,10 +187,10 @@ def create_run(req: CreateRunRequest):
     profile = CandidateProfile.model_validate_json(cand_row["profile_json"])
     company = CompanyProfile.model_validate_json(comp_row["profile_json"])
 
-    run_id = database.create_run(cand_row["id"], comp_row["id"], req.job_url)
+    run_id = database.create_run(cand_row["id"], comp_row["id"], req.job_url, req.recipient_email)
     overlaps = _llm_guard(match, profile, company)
     database.save_overlaps(run_id, overlaps.model_dump_json(indent=2))
-    email_plan = _llm_guard(make_plan, profile, company, overlaps)
+    email_plan = _llm_guard(make_plan, profile, company, overlaps, req.recipient_email)
     database.save_plan(run_id, email_plan.model_dump_json(indent=2))
 
     return {"run_id": run_id, "overlaps": overlaps.model_dump(), "plan": email_plan.model_dump()}
@@ -222,6 +239,8 @@ def patch_email(email_id: int, req: UpdateEmailRequest):
     if database.get_email(email_id) is None:
         raise HTTPException(404, f"No email #{email_id}")
     database.update_email(email_id, final_body=req.final_body, status=req.status)
+    if req.recipient:
+        database.set_email_recipient(email_id, req.recipient)
     return dict(database.get_email(email_id))
 
 
@@ -232,3 +251,55 @@ def set_outcome(email_id: int, req: OutcomeRequest):
         raise HTTPException(404, f"No email #{email_id}")
     database.set_email_replied(email_id, req.replied)
     return dict(database.get_email(email_id))
+
+
+# ---------- sending (stage 7): draft -> confirm -> send ----------
+#
+# Two endpoints, never one. GET /envelope renders exactly what would go out and
+# touches no network; POST /send transmits, and only with confirm=true. Nothing
+# in the generation path can reach Gmail.
+
+@router.get("/send/status")
+def send_status():
+    """Is Gmail authorized, and as which account? The UI polls this to decide
+    whether to offer Send at all. Authorization itself is a CLI step —
+    `python -m scripts.gmail_auth` — because it blocks on a browser consent screen."""
+    return gmail.status().model_dump()
+
+
+@router.get("/emails/{email_id}/envelope")
+def get_envelope(email_id: int, recipient: str | None = None):
+    """The exact message that would be sent, plus every reason to hesitate.
+    Read-only: this is the 'draft' half of draft-then-confirm."""
+    try:
+        env = compose.build_envelope(email_id, recipient_override=recipient)
+    except NotSendable as e:
+        raise HTTPException(404, str(e)) from e
+    return {**env.model_dump(), "sendable": env.sendable}
+
+
+@router.post("/emails/{email_id}/send")
+def send_email(email_id: int, req: SendRequest):
+    """Transmit. Requires confirm=true; 409 if the envelope has blockers."""
+    if not req.confirm:
+        raise HTTPException(
+            400,
+            "confirm must be true — fetch GET /api/emails/{id}/envelope, show it to a "
+            "human, and send only after they approve.",
+        )
+    try:
+        result = compose.send(
+            email_id,
+            confirm=True,
+            recipient_override=req.recipient,
+            override_verdict=req.override_verdict,
+            allow_resend=req.allow_resend,
+            dry_run=req.dry_run,
+        )
+    except NotSendable as e:
+        raise HTTPException(409, str(e)) from e
+    except NotAuthorized as e:
+        raise HTTPException(401, str(e)) from e
+    except SendError as e:
+        raise HTTPException(502, str(e)) from e
+    return result.model_dump()
