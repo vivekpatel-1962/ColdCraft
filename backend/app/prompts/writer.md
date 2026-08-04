@@ -23,6 +23,10 @@ bridges: the specific reason you fit THIS company. 2-3 sentences.>
 SUPPORTING claims: your other relevant areas and a project or two. 1-2 sentences.
 Tilt it toward what the company does. This shows you're more than one project.>
 
+<Buildup — the plan's closing_note: one confident, specific line on what you'd bring
+and why you want THIS role/company. Earned, not generic. This is the beat that makes
+you memorable — but only because it's specific, so keep it anchored to a real detail.>
+
 I've attached my resume. <call_to_action — a short, low-friction ask.>
 
 Best regards,
@@ -32,6 +36,11 @@ Best regards,
 State the application exactly ONCE — in the introduction line. The hook must NOT
 also say "I am applying for X"; it earns its place with relevance or your strongest
 proof. Repeating the application across two lines is a wasted opening.
+
+The buildup is where a weak email gets desperate ("I would be thrilled...", "I'm
+extremely passionate..."). Do the opposite: state plainly what you'd bring and why
+this team specifically, anchored to a fact. Confidence reads as competence; pleading
+reads as filler. One sentence, no more.
 
 ## email_kind = outreach (no role, no resume)
 Tighter: greeting, hook, one proof paragraph from the bridges, one-line ask,

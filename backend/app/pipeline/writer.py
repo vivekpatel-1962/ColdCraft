@@ -135,6 +135,7 @@ def _render(plan: EmailPlan, profile: CandidateProfile, company: CompanyProfile)
               f"  target_role: {plan.target_role or '(none — not an application)'}",
               f"  recipient_type: {plan.recipient_type.value}",
               f"  tone: {plan.tone.value}", f"  opening_hook: {plan.opening_hook}",
+              f"  closing_note (the buildup — use it): {plan.closing_note or '(none)'}",
               f"  call_to_action: {plan.call_to_action}", f"  word_target: {plan.word_target}"]
     lines.append("  bridges (the tailored fit — build the fit paragraph from these):")
     for b in plan.bridges:

@@ -76,6 +76,15 @@ class EmailPlan(BaseModel):
         description="The first line. Must earn its place: a specific point of relevance or insight. "
                     "NEVER a fact the company already knows about itself, never flattery."
     )
+    closing_note: str = Field(
+        default="",
+        description="A short, GROUNDED buildup for the close (applications only): what the candidate "
+                    "would bring and why they genuinely want THIS role/company — anchored to a real "
+                    "detail (the company's domain, the role, the candidate's trajectory). For a "
+                    "student/intern a learning-and-growth angle is fine IF specific. It must feel "
+                    "earned and confident, never pleading or generic. Do NOT use empty enthusiasm "
+                    "('passionate', 'excited about the opportunity', 'fast learner'). Empty for outreach.",
+    )
     call_to_action: str = Field(description="The single, low-friction ask.")
     banned_phrases: list[str] = Field(
         default_factory=list,

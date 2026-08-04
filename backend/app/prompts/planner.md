@@ -64,6 +64,14 @@ Set `email_kind` accordingly (application whenever `target_role` is set).
   recruiter; cto@/eng@/dev@ → engineer; founder@/ceo@ → founder). Recruiters need
   plain language and role clarity; engineers can take specifics; founders want
   outcomes. Default `unknown`.
+- `closing_note` (applications only): the buildup line that makes the candidate
+  memorable and raises their odds. This is NOT generic enthusiasm — "passionate",
+  "excited about the opportunity", "fast learner" all get skimmed past and flagged.
+  Write something earned and specific: what the candidate would bring to THIS team,
+  or why this company's work genuinely draws them, anchored to a real detail (their
+  domain, the role, the candidate's trajectory). For a student/intern, a
+  learning-and-growth angle is good IF it names something concrete they want to work
+  on. One sentence. Confident, not pleading. Empty string for tight outreach.
 - `call_to_action`: one specific, low-friction ask. Best form gives them something
   or offers a choice ("happy to send a short write-up, or walk through it in ten
   minutes"). Avoid naming a specific weekday — it presumes their calendar.
