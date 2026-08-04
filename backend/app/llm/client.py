@@ -31,6 +31,10 @@ T = TypeVar("T", bound=BaseModel)
 # are temporary by definition, so retry with backoff rather than rotating keys:
 # a 503 is model-side capacity, identical across every key.
 TRANSIENT_CODES = {500, 502, 503, 504}
+# Gemini intermittently returns a spurious 400 INVALID_ARGUMENT under load — the
+# identical request succeeds moments later on the same key. Retry it too, but if it
+# PERSISTS the original error is re-raised (a genuinely malformed request must not be
+# disguised as "overloaded"). Only the INVALID_ARGUMENT flavour, not every 400.
 TRANSIENT_ATTEMPTS = 3
 TRANSIENT_BACKOFF_SECONDS = 2.0
 
@@ -211,25 +215,39 @@ def _is_transient_error(e: Exception) -> bool:
     return isinstance(e, gerrors.APIError) and getattr(e, "code", None) in TRANSIENT_CODES
 
 
+def _is_spurious_400(e: Exception) -> bool:
+    """A 400 whose status is INVALID_ARGUMENT — Gemini emits these intermittently."""
+    from google.genai import errors as gerrors
+
+    if not (isinstance(e, gerrors.APIError) and getattr(e, "code", None) == 400):
+        return False
+    return "INVALID_ARGUMENT" in str(e)
+
+
 def _with_transient_retry(fn, stage: str, counter: dict | None = None):
-    """Retry a provider call through temporary 5xx blips with exponential backoff.
-    Quota errors pass straight through — those are the key rotator's business."""
+    """Retry a provider call through temporary blips with exponential backoff:
+    5xx (model overloaded) and Gemini's spurious 400 INVALID_ARGUMENT. Quota errors
+    pass straight through — those are the key rotator's business. If a blip persists,
+    a 5xx raises ProviderUnavailable; a 400 re-raises the original error unchanged."""
     delay = TRANSIENT_BACKOFF_SECONDS
     for attempt in range(1, TRANSIENT_ATTEMPTS + 1):
         try:
             return fn()
         except Exception as e:
-            if not _is_transient_error(e):
+            is_5xx = _is_transient_error(e)
+            if not (is_5xx or _is_spurious_400(e)):
                 raise
             if counter is not None:
                 counter["transient"] = counter.get("transient", 0) + 1
             if attempt == TRANSIENT_ATTEMPTS:
-                raise ProviderUnavailable(
-                    f"Provider returned {getattr(e, 'code', '5xx')} for stage '{stage}' "
-                    f"after {TRANSIENT_ATTEMPTS} attempts — model is overloaded, try again shortly."
-                ) from e
+                if is_5xx:
+                    raise ProviderUnavailable(
+                        f"Provider returned {getattr(e, 'code', '5xx')} for stage '{stage}' "
+                        f"after {TRANSIENT_ATTEMPTS} attempts — model is overloaded, try again shortly."
+                    ) from e
+                raise  # a 400 that won't clear is a real malformed request — surface it as-is
             log.warning("stage=%s transient %s, retry %d/%d in %.0fs",
-                        stage, getattr(e, "code", "5xx"), attempt, TRANSIENT_ATTEMPTS, delay)
+                        stage, getattr(e, "code", "5xx/400"), attempt, TRANSIENT_ATTEMPTS, delay)
             time.sleep(delay)
             delay *= 2
 
