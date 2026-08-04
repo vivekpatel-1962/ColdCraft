@@ -20,38 +20,58 @@ PROMPT_PATH = Path(__file__).resolve().parent.parent / "prompts" / "writer.md"
 
 
 def _short_url(u: str) -> str:
-    return u.replace("https://", "").replace("http://", "").replace("www.", "").rstrip("/")
+    return u.replace("https://", "").replace("http://", "").rstrip("/")
 
 
-def _contact_line(profile: CandidateProfile) -> str:
-    """The canonical one-line signature footer, in priority order."""
+def _contact_block(profile: CandidateProfile) -> list[str]:
+    """The canonical signature footer as labeled lines, one contact per line —
+    the conventional form for an application email (Email:/Phone:/LinkedIn:/GitHub:)."""
     c = profile.contact
-    parts = [p for p in (
-        c.email or profile.contact_email,
-        c.phone,
-        _short_url(c.github) if c.github else None,
-        _short_url(c.linkedin) if c.linkedin else None,
-        _short_url(c.portfolio) if c.portfolio else None,
-    ) if p]
-    return " · ".join(parts)
+    rows = [
+        ("Email", c.email or profile.contact_email),
+        ("Phone", c.phone),
+        ("LinkedIn", _short_url(c.linkedin) if c.linkedin else None),
+        ("GitHub", _short_url(c.github) if c.github else None),
+        ("Portfolio", _short_url(c.portfolio) if c.portfolio else None),
+    ]
+    return [f"{label}: {val}" for label, val in rows if val]
 
 
-_CONTACTISH = re.compile(r"@|https?://|github\.com|linkedin\.com|·|\d[\d\s()-]{7,}\d")
+# A line is part of the appended signature if it's contact data OR a labeled
+# contact line — used both to strip the model's own attempt and to exclude the
+# block from the prose word count.
+_CONTACTISH = re.compile(
+    r"@|https?://|github\.com|linkedin\.com|·|\d[\d\s()-]{7,}\d"
+    r"|^\s*(email|phone|mobile|tel|linkedin|github|portfolio)\s*:",
+    re.IGNORECASE,
+)
 
 
 def _ensure_signature(body: str, profile: CandidateProfile) -> str:
-    """Append the full contact line deterministically. The model assembled it
-    inconsistently (email only in one run, the full line in another), and a GitHub
-    link in the signature is too valuable for a technical role to leave to chance.
-    Any partial contact line the model added at the end is replaced by the canonical one."""
-    line = _contact_line(profile)
-    if not line:
+    """Append the labeled contact block deterministically. The model assembled the
+    signature inconsistently, and the contact details are too valuable to leave to
+    chance. Any contact lines the model added at the end are replaced by ours; the
+    name line ("Vivek Patel") and sign-off ("Best regards,") are preserved. Idempotent."""
+    block = _contact_block(profile)
+    if not block:
         return body
     lines = body.rstrip().splitlines()
-    # Drop any trailing contact-ish lines the model produced (keep the name line).
     while lines and _CONTACTISH.search(lines[-1]):
         lines.pop()
-    return "\n".join(lines).rstrip() + "\n" + line
+    return "\n".join(lines).rstrip() + "\n" + "\n".join(block)
+
+
+def _application_subject(plan: EmailPlan, profile: CandidateProfile) -> str | None:
+    """A clean, consistent subject for applications: '<Role> Application — <Name>'.
+    The LLM phrased this inconsistently ('Application: X - Name'); this guarantees the
+    conventional form. Returns None for non-applications (keep the LLM's subject)."""
+    if not plan.target_role:
+        return None
+    role = re.sub(r"\s*\([^)]*\)", "", plan.target_role).strip()  # drop parentheticals
+    role = re.sub(r"\bInterns\b", "Intern", role)
+    role = re.sub(r"\b(Engineers|Developers|Managers|Analysts)\b",
+                  lambda m: m.group(0)[:-1], role)  # singularize common plurals
+    return f"{role} Application — {profile.full_name}"
 
 
 def _clean_body(text: str) -> str:
@@ -168,6 +188,9 @@ def write(plan: EmailPlan, profile: CandidateProfile, company: CompanyProfile) -
     body, edits = simplify_for_recruiter(body, recruiter)
     opening, _ = simplify_for_recruiter(opening, recruiter)
     subject, _ = simplify_for_recruiter(subject, recruiter)
+
+    # Applications get a deterministic, conventional subject; outreach keeps the LLM's.
+    subject = _application_subject(plan, profile) or subject
 
     return EmailDraft(
         subject=subject,

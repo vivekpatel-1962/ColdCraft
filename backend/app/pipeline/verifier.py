@@ -161,10 +161,15 @@ def _render(draft: EmailDraft, profile: CandidateProfile, company: CompanyProfil
 _URLISH = re.compile(r"\S+@\S+|https?://\S+|(?:www\.|github\.com/|linkedin\.com/)\S+|[+]?\d[\d\s()-]{7,}\d|·")
 
 
+_SIG_LABEL = re.compile(r"^\s*(email|phone|mobile|tel|linkedin|github|portfolio)\s*:.*$",
+                        re.IGNORECASE | re.MULTILINE)
+
+
 def _prose_only(body: str) -> str:
-    """Body with contact tokens (emails, URLs, phone, separators) removed, so word
-    counts reflect prose. Parentheses left empty by a stripped inline link are cleaned."""
-    t = _URLISH.sub("", body)
+    """Body with the signature block and contact tokens (emails, URLs, phone,
+    separators) removed, so word counts reflect prose only."""
+    t = _SIG_LABEL.sub("", body)        # drop labeled signature lines (Email:, GitHub:, ...)
+    t = _URLISH.sub("", t)              # drop any inline contact tokens
     return re.sub(r"\(\s*\)", "", t)
 
 
