@@ -185,6 +185,39 @@ def render_mime(env: SendEnvelope) -> EmailMessage:
     return msg
 
 
+def create_gmail_draft(email_id: int, recipient_override: str | None = None) -> dict:
+    """Save the email to the user's Gmail Drafts folder — it does NOT send. This is
+    the safe path: the human opens the draft in Gmail, does the final review, and
+    sends it themselves. A draft can be incomplete, so the only hard requirement is
+    Gmail authorization; the send-time blockers (verifier fail, already sent) are
+    surfaced as warnings, not gates."""
+    env = build_envelope(email_id, recipient_override=recipient_override)
+    if env.from_address is None:
+        raise NotSendable(
+            next((b for b in env.blockers if "authoriz" in b.lower()),
+                 "Gmail is not authorized — run: python -m scripts.gmail_auth")
+        )
+
+    msg = render_mime(env)
+    raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
+    resp = gmail.create_draft_raw(raw)
+    draft_id = resp.get("id")
+    log.info("Created Gmail draft %s for email #%s (to %s)", draft_id, email_id, env.to)
+
+    # A draft isn't a send, but recording it lets the UI show "in Gmail Drafts".
+    database.update_email(email_id, status="gmail_draft")
+    return {
+        "email_id": email_id,
+        "gmail_draft_id": draft_id,
+        "from_address": env.from_address,
+        "reply_to": env.reply_to,
+        "to": env.to,
+        "subject": env.subject,
+        "attachment": env.attachment.filename if env.attachment else None,
+        "warnings": env.warnings,
+    }
+
+
 def send(
     email_id: int,
     confirm: bool = False,

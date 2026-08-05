@@ -1,11 +1,14 @@
 """Send a drafted email — after you look at exactly what goes out.
 
   python -m scripts.send_email 12                 # email #12: show it, then ask
+  python -m scripts.send_email 12 --draft         # save to Gmail Drafts (does NOT send)
   python -m scripts.send_email --run 8            # the latest draft on run #8
   python -m scripts.send_email 12 --to a@b.com    # set/override the recipient
   python -m scripts.send_email 12 --dry-run       # render + report, transmit nothing
   python -m scripts.send_email 12 --yes           # skip the prompt (you are the gate)
 
+  --draft              save to the Gmail Drafts folder instead of sending — you send
+                       it yourself from Gmail after a final look. The safe default.
   --override-verdict   send even though the verifier said FAIL
   --resend             send again even though this email already went out
 
@@ -28,11 +31,13 @@ RULE = "=" * 68
 
 def _parse(argv: list[str]) -> dict:
     o = {"email_id": None, "run": None, "to": None, "dry_run": False,
-         "yes": False, "override_verdict": False, "resend": False}
+         "yes": False, "override_verdict": False, "resend": False, "draft": False}
     i = 0
     while i < len(argv):
         a = argv[i]
-        if a == "--dry-run":
+        if a == "--draft":
+            o["draft"] = True
+        elif a == "--dry-run":
             o["dry_run"] = True
         elif a in ("--yes", "-y"):
             o["yes"] = True
@@ -99,6 +104,20 @@ def main() -> None:
         print(e); sys.exit(2)
 
     _print_envelope(env)
+
+    # --draft: save to Gmail Drafts and stop. Nothing is sent.
+    if o["draft"]:
+        try:
+            result = compose.create_gmail_draft(email_id, recipient_override=o["to"])
+        except NotSendable as e:
+            print(f"\nCould not create draft: {e}")
+            sys.exit(2)
+        except SendError as e:
+            print(f"\nDraft failed: {e}")
+            sys.exit(3)
+        print(f"\nSaved to Gmail Drafts (draft id {result['gmail_draft_id']}). "
+              f"Open Gmail -> Drafts to review and send it yourself. Nothing was sent.")
+        return
 
     if not o["yes"] and not o["dry_run"]:
         print("\nThis will really send the email above.")

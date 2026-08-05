@@ -5,10 +5,12 @@ that is genuinely hard (the installed-app OAuth dance), and the actual send is a
 single authenticated POST via httpx. That avoids pulling in the whole
 `google-api-python-client` discovery stack for one endpoint.
 
-Scopes are minimal: `gmail.send` cannot read a single message in the mailbox —
-this program can put mail out and nothing else. `userinfo.email` exists only so
-we can show which account is authorized (the sending identity must never be
-guessed; it's whichever account completed the flow).
+Scopes: `gmail.compose` lets the program manage DRAFTS and send — it still cannot
+read a single received message in the mailbox (no inbox access). Drafts are the
+default, safest path: coldmail saves the email to the user's Gmail Drafts folder
+so they review and send it themselves. `userinfo.email` exists only so we can show
+which account is authorized (the sending identity is never guessed — it's whichever
+account completed the flow).
 """
 import json
 import logging
@@ -23,12 +25,13 @@ from app.models.send import GmailStatus
 log = logging.getLogger("coldmail.send")
 
 SCOPES = [
-    "https://www.googleapis.com/auth/gmail.send",
+    "https://www.googleapis.com/auth/gmail.compose",  # manage drafts + send; no inbox read
     "openid",
     "https://www.googleapis.com/auth/userinfo.email",
 ]
 
 SEND_URL = "https://gmail.googleapis.com/gmail/v1/users/me/messages/send"
+DRAFTS_URL = "https://gmail.googleapis.com/gmail/v1/users/me/drafts"
 USERINFO_URL = "https://www.googleapis.com/oauth2/v3/userinfo"
 
 
@@ -177,18 +180,11 @@ def authorized_address() -> Optional[str]:
     return address
 
 
-def send_raw(raw_b64: str) -> dict:
-    """POST one already-rendered RFC-822 message. Returns {id, threadId, ...}."""
+def _post(url: str, payload: dict, action: str) -> dict:
     creds, _ = _load_credentials()
     if creds is None or not creds.valid:
         raise NotAuthorized("Gmail is not authorized — run: python -m scripts.gmail_auth")
-
-    r = httpx.post(
-        SEND_URL,
-        headers={"Authorization": f"Bearer {creds.token}"},
-        json={"raw": raw_b64},
-        timeout=60,
-    )
+    r = httpx.post(url, headers={"Authorization": f"Bearer {creds.token}"}, json=payload, timeout=60)
     if r.status_code >= 400:
         detail = r.text[:500]
         if r.status_code in (401, 403):
@@ -196,5 +192,16 @@ def send_raw(raw_b64: str) -> dict:
                 f"Gmail rejected the credentials ({r.status_code}): {detail}\n"
                 "Re-authorize with: python -m scripts.gmail_auth --force"
             )
-        raise SendError(f"Gmail send failed ({r.status_code}): {detail}")
+        raise SendError(f"Gmail {action} failed ({r.status_code}): {detail}")
     return r.json()
+
+
+def send_raw(raw_b64: str) -> dict:
+    """POST one already-rendered RFC-822 message. Returns {id, threadId, ...}."""
+    return _post(SEND_URL, {"raw": raw_b64}, "send")
+
+
+def create_draft_raw(raw_b64: str) -> dict:
+    """Save one already-rendered RFC-822 message as a Gmail DRAFT (does not send).
+    Returns {id, message: {id, threadId, ...}}."""
+    return _post(DRAFTS_URL, {"message": {"raw": raw_b64}}, "draft")
