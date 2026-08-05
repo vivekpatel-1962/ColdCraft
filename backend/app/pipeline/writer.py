@@ -19,20 +19,26 @@ log = logging.getLogger("coldmail.writer")
 PROMPT_PATH = Path(__file__).resolve().parent.parent / "prompts" / "writer.md"
 
 
-def _short_url(u: str) -> str:
-    return u.replace("https://", "").replace("http://", "").rstrip("/")
+def _full_url(u: str) -> str:
+    """Keep a real scheme so mail clients auto-linkify it in plain text. Bare
+    'github.com/x' is NOT linkified by Gmail; 'https://github.com/x' is."""
+    u = u.strip().rstrip("/")
+    if not u.startswith(("http://", "https://")):
+        u = "https://" + u.lstrip("/")
+    return u
 
 
 def _contact_block(profile: CandidateProfile) -> list[str]:
     """The canonical signature footer as labeled lines, one contact per line —
-    the conventional form for an application email (Email:/Phone:/LinkedIn:/GitHub:)."""
+    the conventional form for an application email (Email:/Phone:/LinkedIn:/GitHub:).
+    URLs keep their https:// so the mail client turns them into clickable links."""
     c = profile.contact
     rows = [
         ("Email", c.email or profile.contact_email),
         ("Phone", c.phone),
-        ("LinkedIn", _short_url(c.linkedin) if c.linkedin else None),
-        ("GitHub", _short_url(c.github) if c.github else None),
-        ("Portfolio", _short_url(c.portfolio) if c.portfolio else None),
+        ("LinkedIn", _full_url(c.linkedin) if c.linkedin else None),
+        ("GitHub", _full_url(c.github) if c.github else None),
+        ("Portfolio", _full_url(c.portfolio) if c.portfolio else None),
     ]
     return [f"{label}: {val}" for label, val in rows if val]
 
