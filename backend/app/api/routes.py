@@ -6,13 +6,17 @@ deliberate simplicity choice — no job queue for one user on localhost.
 """
 import json
 import logging
+import os
+import tempfile
+from pathlib import Path
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 
 from app.db import database
 from app.llm.client import LLMError, ProviderUnavailable, QuotaExhausted
 from app.models import CandidateProfile, CompanyProfile, EmailPlan
+from app.pipeline import intake as intake_mod
 from app.pipeline.company_intel import CompanyScrapeError, analyze_company, domain_of
 from app.pipeline.matcher import match
 from app.pipeline.planner import plan as make_plan
@@ -230,6 +234,77 @@ def create_draft(run_id: int):
     }
 
 
+# ---------- intake -> full pipeline in one call ----------
+
+@router.post("/generate")
+async def generate(
+    url: str | None = Form(None),
+    email: str | None = Form(None),
+    poster: UploadFile | None = File(None),
+):
+    """Stage 0 through 6 in one request: resolve the input (a URL, an email address,
+    or an uploaded hiring poster) to (company, recipient), then scrape -> match ->
+    plan -> write -> verify. Returns the run + draft. Synchronous by design (single
+    user, localhost). This NEVER sends — it produces a draft the human reviews."""
+    database.init_db()
+    cand_row = database.get_active_candidate_profile()
+    if cand_row is None:
+        raise HTTPException(404, "No active candidate profile — analyze a resume first.")
+    profile = CandidateProfile.model_validate_json(cand_row["profile_json"])
+
+    # Persist the uploaded poster to a temp file the vision stage can read, then remove it.
+    poster_path = None
+    if poster is not None and poster.filename:
+        data = await poster.read()
+        suffix = Path(poster.filename).suffix or ".png"
+        fd, poster_path = tempfile.mkstemp(suffix=suffix)
+        with os.fdopen(fd, "wb") as f:
+            f.write(data)
+
+    try:
+        try:
+            res = _llm_guard(intake_mod.resolve, website=url or None,
+                             email=email or None, poster_path=poster_path)
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+    finally:
+        if poster_path:
+            os.unlink(poster_path)
+
+    if not res.company_url:
+        raise HTTPException(422, "No company website could be resolved. " + " ".join(res.notes))
+
+    cp_id, company, scrape = _llm_guard(
+        analyze_company, res.company_url, None,
+        res.poster.as_context() if res.poster else None,
+    )
+    comp_row = database.get_latest_company_profile(domain_of(res.company_url))
+
+    run_id = database.create_run(cand_row["id"], comp_row["id"], None, res.recipient_email)
+    overlaps = _llm_guard(match, profile, company)
+    database.save_overlaps(run_id, overlaps.model_dump_json(indent=2))
+    email_plan = _llm_guard(make_plan, profile, company, overlaps, res.recipient_email)
+    database.save_plan(run_id, email_plan.model_dump_json(indent=2))
+
+    history = database.get_recent_opening_lines()
+    draft = _llm_guard(write, email_plan, profile, company)
+    report = _llm_guard(verify, draft, profile, company, email_plan, history)
+    email_id = database.save_draft(
+        run_id, draft.model_dump_json(indent=2), draft.subject, draft.body, draft.opening_line
+    )
+    database.save_verifier(run_id, report.model_dump_json(indent=2))
+
+    return {
+        "run_id": run_id,
+        "email_id": email_id,
+        "intake": res.model_dump(),
+        "fit_score": overlaps.fit_score,
+        "company": {"name": company.name, "domain": company.domain, "tier": scrape.tier.value},
+        "draft": draft.model_dump(),
+        "verifier": report.model_dump(),
+    }
+
+
 # ---------- emails (edit-learning + outcome loops) ----------
 
 @router.patch("/emails/{email_id}")
@@ -276,6 +351,20 @@ def get_envelope(email_id: int, recipient: str | None = None):
     except NotSendable as e:
         raise HTTPException(404, str(e)) from e
     return {**env.model_dump(), "sendable": env.sendable}
+
+
+@router.post("/emails/{email_id}/gmail-draft")
+def save_gmail_draft(email_id: int, req: SendRequest):
+    """Save the email to the user's Gmail Drafts folder — does NOT send. The safe
+    path: the human opens Gmail, does the final review, and sends it themselves."""
+    try:
+        return compose.create_gmail_draft(email_id, recipient_override=req.recipient)
+    except NotSendable as e:
+        raise HTTPException(409, str(e)) from e
+    except NotAuthorized as e:
+        raise HTTPException(401, str(e)) from e
+    except SendError as e:
+        raise HTTPException(502, str(e)) from e
 
 
 @router.post("/emails/{email_id}/send")

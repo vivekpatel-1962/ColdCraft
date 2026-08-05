@@ -1,0 +1,80 @@
+/* Design tokens — the single source of truth for colour, type, spacing, elevation.
+   Every component reads these variables; nothing hard-codes a hex. Light + dark. */
+
+:root {
+  /* brand */
+  --brand-50:  #eef4ff;
+  --brand-100: #dbe6fe;
+  --brand-300: #93b4fd;
+  --brand-500: #4f7cf7;
+  --brand-600: #3b63e6;
+  --brand-700: #2f4fc4;
+
+  /* neutrals (light theme default) */
+  --bg:        #f6f7f9;
+  --surface:   #ffffff;
+  --surface-2: #f1f3f7;
+  --border:    #e4e7ec;
+  --border-2:  #eef0f4;
+  --text:      #101828;
+  --text-2:    #475467;
+  --muted:     #98a2b3;
+
+  /* status */
+  --ok:   #16a34a;   --ok-bg:   #ecfdf3;
+  --warn: #d97706;   --warn-bg: #fffaeb;
+  --bad:  #e5484d;   --bad-bg:  #fef3f2;
+  --accent: var(--brand-600);
+
+  /* type */
+  --font: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, "Cascadia Code", "SF Mono", Consolas, monospace;
+
+  /* radius */
+  --r-sm: 8px;  --r-md: 12px;  --r-lg: 16px;  --r-xl: 22px;  --r-full: 999px;
+
+  /* spacing scale (4px base) */
+  --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 20px; --s6: 24px; --s8: 32px; --s10: 40px;
+
+  /* elevation */
+  --shadow-sm: 0 1px 2px rgba(16,24,40,.06), 0 1px 3px rgba(16,24,40,.04);
+  --shadow-md: 0 4px 12px rgba(16,24,40,.08), 0 2px 6px rgba(16,24,40,.04);
+  --shadow-lg: 0 12px 32px rgba(16,24,40,.12), 0 4px 12px rgba(16,24,40,.06);
+  --ring: 0 0 0 4px var(--brand-100);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg:        #0b0d12;
+    --surface:   #14171d;
+    --surface-2: #1b1f27;
+    --border:    #262b34;
+    --border-2:  #1f232b;
+    --text:      #e7eaf0;
+    --text-2:    #a2abba;
+    --muted:     #6b7482;
+    --brand-100: #1e2a4a;
+    --accent:    #6f9bff;
+    --ok-bg:  #0e2318; --warn-bg: #2a2008; --bad-bg: #2a1315;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,.4);
+    --shadow-md: 0 6px 18px rgba(0,0,0,.45);
+    --shadow-lg: 0 16px 40px rgba(0,0,0,.55);
+    --ring: 0 0 0 4px rgba(111,155,255,.22);
+  }
+}
+
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+code, kbd { font-family: var(--mono); font-size: .88em; }
+::selection { background: var(--brand-100); }

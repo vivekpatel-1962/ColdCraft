@@ -13,3 +13,5 @@ pillow
 # httpx POST, so google-api-python-client is deliberately not a dependency.
 google-auth
 google-auth-oauthlib
+
+python-multipart

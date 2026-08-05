@@ -39,10 +39,29 @@ export const api = {
   setOutcome: (id, replied) =>
     req(`/api/emails/${id}/outcome`, { method: 'POST', body: JSON.stringify({ replied }) }),
 
+  // --- intake -> full pipeline in one call (URL / email / poster upload) ---
+  // FormData must NOT carry a JSON Content-Type — the browser sets the multipart
+  // boundary itself, so this bypasses req().
+  generate: async ({ url, email, poster } = {}) => {
+    const fd = new FormData()
+    if (url) fd.append('url', url)
+    if (email) fd.append('email', email)
+    if (poster) fd.append('poster', poster)
+    const res = await fetch(BASE + '/api/generate', { method: 'POST', body: fd })
+    const text = await res.text()
+    const data = text ? JSON.parse(text) : null
+    if (!res.ok) throw new Error(data?.detail || `${res.status} ${res.statusText}`)
+    return data
+  },
+
   // --- sending: always envelope first, then an explicitly confirmed send ---
   sendStatus: () => req('/api/send/status'),
   getEnvelope: (id, recipient) =>
     req(`/api/emails/${id}/envelope${recipient ? `?recipient=${encodeURIComponent(recipient)}` : ''}`),
+  saveGmailDraft: (id, recipient) =>
+    req(`/api/emails/${id}/gmail-draft`, {
+      method: 'POST', body: JSON.stringify({ recipient: recipient || null }),
+    }),
   sendEmail: (id, opts = {}) =>
     req(`/api/emails/${id}/send`, { method: 'POST', body: JSON.stringify({ confirm: true, ...opts }) }),
 }
