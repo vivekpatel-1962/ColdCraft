@@ -1,95 +1,99 @@
-/* Design tokens — tweakcn "世界之外 / Beyond the World": near-black canvas, vivid
-   RED primary + bright TEAL secondary, cool-white text. Alegreya Sans + JetBrains
-   Mono, 0.75rem radius. Dark is the native theme; light is a derived counterpart. */
+/* Design tokens — tweakcn "Vercel": strict monochrome (true black / true white),
+   OKLCH throughout, Geist + Geist Mono, 0.5rem base radius, near-flat shadows.
+   Every color value below is taken directly from the tweakcn "vercel" theme
+   registry (oklch, light + dark). Status colors (ok/warn/bad) are the one
+   deliberate addition — "destructive" matches tweakcn exactly, ok/warn are
+   restrained analogues in the same style since the pipeline needs pass/warn/fail.
+   Achromatic grays use `none` for hue (not `0`) so color-mix() in app.css
+   inherits the *other* color's hue instead of dragging every mix toward red. */
 
 :root {
-  /* red primary scale — light counterpart (a touch deeper for white bg) */
-  --brand-50:  hsl(0 100% 97%);
-  --brand-100: hsl(0 90% 93%);
-  --brand-300: hsl(0 92% 74%);
-  --brand-500: hsl(0 82% 56%);     /* red — primary / CTA */
-  --brand-600: hsl(0 76% 49%);     /* hover */
-  --brand-700: hsl(0 70% 42%);
-  --on-brand:  hsl(0 0% 100%);
+  /* ---- light (base) ---- */
+  --bg:        oklch(0.9900 0 none);
+  --surface:   oklch(1.0000 0 none);
+  --surface-2: oklch(0.9400 0 none);
+  --border:    oklch(0.9200 0 none);
+  --border-2:  oklch(0.9550 0 none);
+  --text:      oklch(0 0 none);
+  --text-2:    oklch(0.4400 0 none);
+  --muted:     oklch(0.5800 0 none);
 
-  --bg:        hsl(0 0% 99%);
-  --surface:   hsl(0 0% 100%);
-  --surface-2: hsl(240 6% 96.5%);
-  --border:    hsl(240 6% 90%);
-  --border-2:  hsl(240 6% 94%);
-  --text:      hsl(240 12% 8%);
-  --text-2:    hsl(240 5% 40%);
-  --muted:     hsl(240 5% 55%);
+  --brand-50:  oklch(0.9700 0 none);
+  --brand-100: oklch(0.9400 0 none);
+  --brand-300: oklch(0.7000 0 none);
+  --brand-500: oklch(0 0 none);        /* primary — pure black */
+  --brand-600: oklch(0.1800 0 none);   /* hover */
+  --brand-700: oklch(0.3000 0 none);   /* active */
+  --on-brand:  oklch(1.0000 0 none);
 
-  --ok:   hsl(160 60% 36%);   --ok-bg:   hsl(160 45% 95%);
-  --warn: hsl(38 82% 42%);    --warn-bg: hsl(40 85% 95%);
-  --bad:  hsl(0 72% 51%);     --bad-bg:  hsl(0 80% 96%);
+  --accent:    var(--brand-500);
+  --on-accent: var(--on-brand);
 
-  --accent:    hsl(172 70% 33%);    /* teal — links / highlights (deeper for light) */
-  --on-accent: hsl(0 0% 100%);
+  --ok:     oklch(0.6000 0.1400 155); --ok-bg:   oklch(0.9600 0.0350 155);
+  --warn:   oklch(0.7000 0.1550 80);  --warn-bg: oklch(0.9600 0.0450 85);
+  --bad:    oklch(0.6300 0.1900 23.03); --bad-bg: oklch(0.9600 0.0450 23);
 
-  --font: "Alegreya Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-heading: var(--font);
-  --mono: "JetBrains Mono", ui-monospace, "Cascadia Code", Consolas, monospace;
+  --mono: "Geist Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
 
-  /* radius: --radius 0.75rem */
-  --r-sm: 8px;  --r-md: 12px;  --r-lg: 16px;  --r-xl: 22px;  --r-full: 999px;
+  --r-sm: 6px; --r-md: 8px; --r-lg: 10px; --r-xl: 14px; --r-full: 999px;
 
   --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 20px; --s6: 24px; --s8: 32px; --s10: 40px;
 
-  --shadow-sm: 0 1px 2px hsl(240 12% 8% / .05);
-  --shadow-md: 0 2px 8px hsl(240 12% 8% / .08), 0 1px 3px hsl(240 12% 8% / .05);
-  --shadow-lg: 0 14px 32px hsl(240 12% 8% / .14), 0 4px 10px hsl(240 12% 8% / .07);
-  --ring: 0 0 0 3px hsl(0 82% 56% / .3);
+  --shadow-sm: 0 1px 2px rgba(0,0,0,.05);
+  --shadow-md: 0 4px 10px rgba(0,0,0,.07), 0 1px 2px rgba(0,0,0,.05);
+  --shadow-lg: 0 16px 36px rgba(0,0,0,.10), 0 2px 6px rgba(0,0,0,.05);
+  --ring: 0 0 0 3px oklch(0 0 none / .12);
 }
 
-/* native "Beyond the World" (dark): explicit toggle OR system-dark */
+/* native "Vercel" dark: explicit toggle OR system-dark */
 :root[data-theme="dark"] { color-scheme: dark; }
 :root[data-theme="dark"] {
-  --brand-50:  hsl(0 45% 12%);
-  --brand-100: hsl(0 48% 18%);
-  --brand-300: hsl(0 72% 44%);
-  --brand-500: hsl(0 100% 65.1%);   /* vivid red/coral */
-  --brand-600: hsl(0 90% 58%);
-  --brand-700: hsl(0 82% 50%);
-  --on-brand:  hsl(0 0% 100%);
+  --bg:        oklch(0 0 none);
+  --surface:   oklch(0.1400 0 none);
+  --surface-2: oklch(0.2500 0 none);
+  --border:    oklch(0.2600 0 none);
+  --border-2:  oklch(0.1900 0 none);
+  --text:      oklch(1.0000 0 none);
+  --text-2:    oklch(0.7200 0 none);
+  --muted:     oklch(0.5200 0 none);
 
-  --bg:        hsl(0 0% 1.18%);
-  --surface:   hsl(240 10% 3.92%);
-  --surface-2: hsl(240 5.88% 10%);
-  --border:    hsl(240 3.7% 15.88%);
-  --border-2:  hsl(240 4% 11%);
-  --text:      hsl(210 40% 98%);
-  --text-2:    hsl(240 5% 64.9%);
-  --muted:     hsl(240 5% 46%);
+  --brand-50:  oklch(0.1400 0 none);
+  --brand-100: oklch(0.1800 0 none);
+  --brand-300: oklch(0.5000 0 none);
+  --brand-500: oklch(1.0000 0 none);   /* primary — pure white */
+  --brand-600: oklch(0.8800 0 none);
+  --brand-700: oklch(0.7600 0 none);
+  --on-brand:  oklch(0 0 none);
 
-  --ok:   hsl(160 60% 48%);   --ok-bg:   hsl(160 40% 12%);
-  --warn: hsl(40 80% 58%);    --warn-bg: hsl(40 40% 13%);
-  --bad:  hsl(0 80% 62%);     --bad-bg:  hsl(0 45% 14%);
+  --accent:    var(--brand-500);
+  --on-accent: var(--on-brand);
 
-  --accent:    hsl(172.46 66% 50.4%);   /* bright teal */
-  --on-accent: hsl(0 0% 1.18%);
+  --ok:     oklch(0.7200 0.1600 155); --ok-bg:   oklch(0.2200 0.0500 155);
+  --warn:   oklch(0.7800 0.1500 85);  --warn-bg: oklch(0.2400 0.0500 85);
+  --bad:    oklch(0.6900 0.2000 23.91); --bad-bg: oklch(0.2400 0.0600 23);
 
-  --shadow-sm: 0 1px 2px hsl(0 0% 0% / .5);
-  --shadow-md: 0 4px 16px hsl(0 0% 0% / .55);
-  --shadow-lg: 0 20px 44px hsl(0 0% 0% / .65);
-  --ring: 0 0 0 3px hsl(0 100% 65.1% / .38);
+  --shadow-sm: 0 1px 2px rgba(0,0,0,.5);
+  --shadow-md: 0 8px 20px rgba(0,0,0,.5);
+  --shadow-lg: 0 24px 48px rgba(0,0,0,.6);
+  --ring: 0 0 0 3px oklch(1 0 none / .16);
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
-    --brand-50: hsl(0 45% 12%); --brand-100: hsl(0 48% 18%); --brand-300: hsl(0 72% 44%);
-    --brand-500: hsl(0 100% 65.1%); --brand-600: hsl(0 90% 58%); --brand-700: hsl(0 82% 50%);
-    --on-brand: hsl(0 0% 100%);
-    --bg: hsl(0 0% 1.18%); --surface: hsl(240 10% 3.92%); --surface-2: hsl(240 5.88% 10%);
-    --border: hsl(240 3.7% 15.88%); --border-2: hsl(240 4% 11%);
-    --text: hsl(210 40% 98%); --text-2: hsl(240 5% 64.9%); --muted: hsl(240 5% 46%);
-    --ok: hsl(160 60% 48%); --ok-bg: hsl(160 40% 12%); --warn: hsl(40 80% 58%); --warn-bg: hsl(40 40% 13%);
-    --bad: hsl(0 80% 62%); --bad-bg: hsl(0 45% 14%);
-    --accent: hsl(172.46 66% 50.4%); --on-accent: hsl(0 0% 1.18%);
-    --shadow-sm: 0 1px 2px hsl(0 0% 0% / .5); --shadow-md: 0 4px 16px hsl(0 0% 0% / .55);
-    --shadow-lg: 0 20px 44px hsl(0 0% 0% / .65); --ring: 0 0 0 3px hsl(0 100% 65.1% / .38);
+    --bg: oklch(0 0 none); --surface: oklch(0.1400 0 none); --surface-2: oklch(0.2500 0 none);
+    --border: oklch(0.2600 0 none); --border-2: oklch(0.1900 0 none);
+    --text: oklch(1.0000 0 none); --text-2: oklch(0.7200 0 none); --muted: oklch(0.5200 0 none);
+    --brand-50: oklch(0.1400 0 none); --brand-100: oklch(0.1800 0 none); --brand-300: oklch(0.5000 0 none);
+    --brand-500: oklch(1.0000 0 none); --brand-600: oklch(0.8800 0 none); --brand-700: oklch(0.7600 0 none);
+    --on-brand: oklch(0 0 none); --accent: var(--brand-500); --on-accent: var(--on-brand);
+    --ok: oklch(0.7200 0.1600 155); --ok-bg: oklch(0.2200 0.0500 155);
+    --warn: oklch(0.7800 0.1500 85); --warn-bg: oklch(0.2400 0.0500 85);
+    --bad: oklch(0.6900 0.2000 23.91); --bad-bg: oklch(0.2400 0.0600 23);
+    --shadow-sm: 0 1px 2px rgba(0,0,0,.5); --shadow-md: 0 8px 20px rgba(0,0,0,.5);
+    --shadow-lg: 0 24px 48px rgba(0,0,0,.6); --ring: 0 0 0 3px oklch(1 0 none / .16);
   }
 }
 
@@ -102,10 +106,12 @@ body {
   font-family: var(--font);
   font-size: 14.5px;
   line-height: 1.6;
+  letter-spacing: -.006em;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 h1, h2, h3, h4 { font-family: var(--font-heading); }
-a { color: var(--accent); text-decoration: none; }
-a:hover { text-decoration: underline; }
+a { color: var(--text); text-decoration-color: var(--border); text-underline-offset: 3px; }
+a:hover { text-decoration: underline; text-decoration-color: currentColor; }
 code, kbd { font-family: var(--mono); font-size: .86em; }
-::selection { background: var(--accent); color: var(--on-accent); }
+::selection { background: var(--text); color: var(--bg); }

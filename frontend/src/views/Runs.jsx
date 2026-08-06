@@ -39,7 +39,7 @@ export default function Runs() {
           <div><h2>Run #{run.id} — {run.company_name || run.domain}</h2><p className="small muted">{run.status}</p></div>
           <button className="btn" onClick={() => { setRun(null); loadRuns() }}>← All runs</button>
         </div>
-        <RunDetail run={run} busy={busy} onDraft={draft} onRefresh={async () => { setRun(await api.getRun(run.id)); loadRuns() }} />
+        <RunDetail run={run} busy={busy} onDraft={draft} onRefresh={async () => { setRun(await api.getRun(run.id)); loadRuns() }} layout="full" />
       </div>
     )
   }

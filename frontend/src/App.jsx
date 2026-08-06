@@ -57,11 +57,16 @@ export default function App() {
       <Sidebar tab={tab} setTab={setTab} online={online} gmail={gmail} />
       <div className="main">
         <div className="topbar">
-          <div><h1>{title}</h1><div className="sub">{sub}</div></div>
-          <button className="btn ghost theme-toggle" title="Toggle light / dark"
-            onClick={() => setTheme((t) => (t === 'light' ? 'dark' : 'light'))}>
-            {theme === 'light' ? <IconMoon /> : <IconSun />}
-          </button>
+          <div className="topbar-inner">
+            <div>
+              <div className="kicker">coldmail / {tab}</div>
+              <h1>{title}</h1><div className="sub">{sub}</div>
+            </div>
+            <button className="btn ghost theme-toggle" title="Toggle light / dark"
+              onClick={() => setTheme((t) => (t === 'light' ? 'dark' : 'light'))}>
+              {theme === 'light' ? <IconMoon /> : <IconSun />}
+            </button>
+          </div>
         </div>
 
         {online === false && (
