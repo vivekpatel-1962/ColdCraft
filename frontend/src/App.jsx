@@ -5,6 +5,7 @@ import NewApplication from './views/NewApplication'
 import Runs from './views/Runs'
 import Companies from './views/Companies'
 import Profile from './views/Profile'
+import { IconSun, IconMoon } from './components/icons'
 
 const TITLES = {
   new: ['New application', 'Turn a URL, email, or hiring poster into a verified, ready-to-review draft'],
@@ -17,11 +18,18 @@ export default function App() {
   const [tab, setTab] = useState('new')
   const [online, setOnline] = useState(null)
   const [gmail, setGmail] = useState(null)
+  // Default to the warm light theme (the referenced look); remember the choice.
+  const [theme, setTheme] = useState(() => localStorage.getItem('coldmail-theme') || 'light')
 
   useEffect(() => {
     api.health().then(() => setOnline(true)).catch(() => setOnline(false))
     api.sendStatus().then(setGmail).catch(() => {})
   }, [])
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme)
+    localStorage.setItem('coldmail-theme', theme)
+  }, [theme])
 
   const [title, sub] = TITLES[tab]
 
@@ -31,6 +39,10 @@ export default function App() {
       <div className="main">
         <div className="topbar">
           <div><h1>{title}</h1><div className="sub">{sub}</div></div>
+          <button className="btn ghost theme-toggle" title="Toggle light / dark"
+            onClick={() => setTheme((t) => (t === 'light' ? 'dark' : 'light'))}>
+            {theme === 'light' ? <IconMoon /> : <IconSun />}
+          </button>
         </div>
 
         {online === false && (

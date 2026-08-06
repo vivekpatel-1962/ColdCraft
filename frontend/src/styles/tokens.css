@@ -1,78 +1,81 @@
-/* Design tokens — warm editorial B2B palette (lavender accent on cream/ink),
-   after Arounda's "UI/UX for B2B SaaS". Neutrals are WARM, not cool grey.
-   Every component reads these variables; nothing hard-codes a hex. Light + dark. */
+/* Design tokens — navy + golden-yellow brand, after mitchelladam.co.uk.
+   Montserrat headings, Nunito body. Yellow is a fill/CTA colour (dark text on it);
+   navy carries text-level accents on light, yellow on dark. Light + dark. */
 
 :root {
-  /* accent — soft lavender/violet scale (shot accent ≈ #ba9adf) */
-  --brand-50:  #f5eefb;
-  --brand-100: #eaddf6;
-  --brand-300: #c9aee9;
-  --brand-500: #a985db;
-  --brand-600: #9068c8;   /* primary action — reads white text well */
-  --brand-700: #785199;
+  /* brand — golden yellow scale (site accent #ffd450) */
+  --brand-50:  #fff9e6;
+  --brand-100: #fff0c2;
+  --brand-300: #ffe27a;
+  --brand-500: #ffd450;   /* the yellow — CTA / highlight fills */
+  --brand-600: #f5c62e;   /* deeper (hover) */
+  --brand-700: #e0b01f;
+  --on-brand:  #0d121d;   /* navy text always sits on yellow */
 
-  /* warm secondaries from the shot (used sparingly) */
-  --clay:  #b47461;   /* terracotta */
-  --sand:  #dec5b8;   /* beige */
-
-  /* neutrals — warm (light theme default) */
-  --bg:        #f4efec;   /* warm cream */
+  /* neutrals — cool, near-white on navy ink (light theme default) */
+  --bg:        #f4f6f8;
   --surface:   #ffffff;
-  --surface-2: #f6efe9;   /* warm beige tint */
-  --border:    #e8ded7;
-  --border-2:  #f1e9e3;
-  --text:      #1c1517;   /* deep warm ink */
-  --text-2:    #6c5d57;   /* warm taupe */
-  --muted:     #a9998f;
+  --surface-2: #f2f5f8;
+  --border:    #e5e9ef;
+  --border-2:  #eef1f6;
+  --text:      #0d121d;   /* deep navy ink */
+  --text-2:    #495264;
+  --muted:     #8b95a5;
 
   /* status */
-  --ok:   #3f8f5b;   --ok-bg:   #eaf5ee;
-  --warn: #bd7d1e;   --warn-bg: #faf1e2;
-  --bad:  #cf5148;   --bad-bg:  #fbeceb;
-  --accent: var(--brand-600);
-  --on-accent: #ffffff;   /* text/icon colour that sits on the accent fill */
+  --ok:   #1f9d55;   --ok-bg:   #e8f6ee;
+  --warn: #c67c12;   --warn-bg: #fbf1df;
+  --bad:  #d64545;   --bad-bg:  #fbeaea;
+
+  /* text-level accent: navy on light (yellow text would be unreadable on white) */
+  --accent: #0d121d;
+  --on-accent: #ffffff;   /* text on the navy accent fill (avatar, etc.) */
 
   /* type */
-  --font: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font: "Nunito", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-heading: "Montserrat", var(--font);
   --mono: ui-monospace, "Cascadia Code", "SF Mono", Consolas, monospace;
 
-  /* radius — the warm look leans rounder */
+  /* radius */
   --r-sm: 9px;  --r-md: 13px;  --r-lg: 18px;  --r-xl: 24px;  --r-full: 999px;
 
   /* spacing (4px base) */
   --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 20px; --s6: 24px; --s8: 32px; --s10: 40px;
 
-  /* elevation — warm-tinted shadows */
-  --shadow-sm: 0 1px 2px rgba(60,40,35,.06), 0 1px 3px rgba(60,40,35,.05);
-  --shadow-md: 0 6px 16px rgba(60,40,35,.08), 0 2px 6px rgba(60,40,35,.05);
-  --shadow-lg: 0 16px 38px rgba(60,40,35,.14), 0 5px 14px rgba(60,40,35,.07);
+  /* elevation — cool navy-tinted shadow */
+  --shadow-sm: 0 1px 2px rgba(13,18,29,.06), 0 1px 3px rgba(13,18,29,.05);
+  --shadow-md: 0 6px 16px rgba(13,18,29,.09), 0 2px 6px rgba(13,18,29,.05);
+  --shadow-lg: 0 18px 40px rgba(13,18,29,.16), 0 5px 14px rgba(13,18,29,.08);
   --ring: 0 0 0 4px var(--brand-100);
 }
 
+/* dark values: explicit toggle OR system-dark (unless user forced light) */
+:root[data-theme="dark"] {
+  --bg: #0d121d; --surface: #151c2b; --surface-2: #1c2536;
+  --border: #273244; --border-2: #1a2231;
+  --text: #f2f5fa; --text-2: #aab4c6; --muted: #6d788b;
+  --brand-100: #33300f;   /* dark yellow tint for active states */
+  --brand-50:  #23220f;
+  --accent: #ffd450;      /* yellow reads on navy — links/highlights go yellow */
+  --on-accent: #0d121d;
+  --ok-bg: #10281b; --warn-bg: #2b2109; --bad-bg: #2c1414;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,.5);
+  --shadow-md: 0 8px 22px rgba(0,0,0,.5);
+  --shadow-lg: 0 20px 46px rgba(0,0,0,.6);
+  --ring: 0 0 0 4px rgba(255,212,80,.22);
+}
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --brand-100: #33254a;
-    --brand-300: #9b7ad0;
-    --brand-500: #b48fe4;
-    --brand-600: #c4a3e8;   /* brighter lavender on dark */
-    --brand-700: #d3b9ef;
-
-    --bg:        #0f0b0d;   /* warm near-black */
-    --surface:   #1a1315;
-    --surface-2: #241a1d;
-    --border:    #332528;
-    --border-2:  #251b1e;
-    --text:      #f2e9ea;
-    --text-2:    #b4a29d;
-    --muted:     #7c6b66;
-
-    --ok-bg:  #12271a; --warn-bg: #2a2008; --bad-bg: #2c1614;
-    --accent: var(--brand-600);
-    --on-accent: #241a1d;   /* dark ink reads on the light lavender accent */
+    --bg: #0d121d; --surface: #151c2b; --surface-2: #1c2536;
+    --border: #273244; --border-2: #1a2231;
+    --text: #f2f5fa; --text-2: #aab4c6; --muted: #6d788b;
+    --brand-100: #33300f; --brand-50: #23220f;
+    --accent: #ffd450; --on-accent: #0d121d;
+    --ok-bg: #10281b; --warn-bg: #2b2109; --bad-bg: #2c1414;
     --shadow-sm: 0 1px 2px rgba(0,0,0,.5);
     --shadow-md: 0 8px 22px rgba(0,0,0,.5);
     --shadow-lg: 0 20px 46px rgba(0,0,0,.6);
-    --ring: 0 0 0 4px rgba(180,143,228,.22);
+    --ring: 0 0 0 4px rgba(255,212,80,.22);
   }
 }
 
@@ -83,11 +86,12 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: var(--font);
-  font-size: 14px;
-  line-height: 1.55;
+  font-size: 14.5px;
+  line-height: 1.6;
   -webkit-font-smoothing: antialiased;
 }
+h1, h2, h3, h4, .font-head { font-family: var(--font-heading); }
 a { color: var(--accent); text-decoration: none; }
 a:hover { text-decoration: underline; }
 code, kbd { font-family: var(--mono); font-size: .88em; }
-::selection { background: var(--brand-100); }
+::selection { background: var(--brand-300); color: var(--on-brand); }
