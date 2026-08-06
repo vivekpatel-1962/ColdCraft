@@ -3,14 +3,14 @@
    navy carries text-level accents on light, yellow on dark. Light + dark. */
 
 :root {
-  /* brand — golden yellow scale (site accent #ffd450) */
-  --brand-50:  #fff9e6;
-  --brand-100: #fff0c2;
-  --brand-300: #ffe27a;
-  --brand-500: #ffd450;   /* the yellow — CTA / highlight fills */
-  --brand-600: #f5c62e;   /* deeper (hover) */
-  --brand-700: #e0b01f;
-  --on-brand:  #0d121d;   /* navy text always sits on yellow */
+  /* brand — deep golden amber scale */
+  --brand-50:  #fdf4df;
+  --brand-100: #fbe6b3;
+  --brand-300: #f5cf6a;
+  --brand-500: #f2b01f;   /* the gold — CTA / highlight fills */
+  --brand-600: #dd9c0f;   /* deeper (hover) */
+  --brand-700: #b87f0a;
+  --on-brand:  #1a1204;   /* near-black-brown text on gold */
 
   /* neutrals — cool, near-white on navy ink (light theme default) */
   --bg:        #f4f6f8;
@@ -56,13 +56,13 @@
   --text: #f2f5fa; --text-2: #aab4c6; --muted: #6d788b;
   --brand-100: #33300f;   /* dark yellow tint for active states */
   --brand-50:  #23220f;
-  --accent: #ffd450;      /* yellow reads on navy — links/highlights go yellow */
+  --accent: #f5b820;      /* yellow reads on navy — links/highlights go yellow */
   --on-accent: #0d121d;
   --ok-bg: #10281b; --warn-bg: #2b2109; --bad-bg: #2c1414;
   --shadow-sm: 0 1px 2px rgba(0,0,0,.5);
   --shadow-md: 0 8px 22px rgba(0,0,0,.5);
   --shadow-lg: 0 20px 46px rgba(0,0,0,.6);
-  --ring: 0 0 0 4px rgba(255,212,80,.22);
+  --ring: 0 0 0 4px rgba(245,184,32,.24);
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
@@ -70,12 +70,12 @@
     --border: #273244; --border-2: #1a2231;
     --text: #f2f5fa; --text-2: #aab4c6; --muted: #6d788b;
     --brand-100: #33300f; --brand-50: #23220f;
-    --accent: #ffd450; --on-accent: #0d121d;
+    --accent: #f5b820; --on-accent: #0d121d;
     --ok-bg: #10281b; --warn-bg: #2b2109; --bad-bg: #2c1414;
     --shadow-sm: 0 1px 2px rgba(0,0,0,.5);
     --shadow-md: 0 8px 22px rgba(0,0,0,.5);
     --shadow-lg: 0 20px 46px rgba(0,0,0,.6);
-    --ring: 0 0 0 4px rgba(255,212,80,.22);
+    --ring: 0 0 0 4px rgba(245,184,32,.24);
   }
 }
 

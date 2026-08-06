@@ -31,6 +31,23 @@ export default function App() {
     localStorage.setItem('coldmail-theme', theme)
   }, [theme])
 
+  // Scroll-reveal: .reveal elements fade up as they enter the viewport. A
+  // MutationObserver picks up nodes added later (opening a run), and a timeout
+  // fallback reveals anything the observer somehow misses — content is never stuck.
+  useEffect(() => {
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach((e) => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target) } })
+    }, { threshold: 0.06, rootMargin: '0px 0px -40px 0px' })
+    const scan = () => document.querySelectorAll('.reveal:not(.in)').forEach((el) => io.observe(el))
+    scan()
+    const mo = new MutationObserver(scan)
+    mo.observe(document.body, { childList: true, subtree: true })
+    const safety = setInterval(() => document.querySelectorAll('.reveal:not(.in)').forEach((el) => {
+      if (el.getBoundingClientRect().top < window.innerHeight) el.classList.add('in')
+    }), 400)
+    return () => { io.disconnect(); mo.disconnect(); clearInterval(safety) }
+  }, [])
+
   const [title, sub] = TITLES[tab]
 
   return (

@@ -202,28 +202,58 @@ details summary { cursor: pointer; color: var(--text-2); }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* ---------- motion (GSAP-style entrance + micro-interactions) ---------- */
-@keyframes fadeUp { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+@keyframes fadeUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: none; } }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-@keyframes popIn { from { opacity: 0; transform: scale(.94); } to { opacity: 1; transform: none; } }
+@keyframes popIn { from { opacity: 0; transform: scale(.9); } to { opacity: 1; transform: none; } }
+@keyframes slideIn { from { opacity: 0; transform: translateX(-16px); } to { opacity: 1; transform: none; } }
+@keyframes rowIn { from { opacity: 0; transform: translateX(-22px); } to { opacity: 1; transform: none; } }
 
-/* the page content rises in, gently staggered — re-runs on view change via :key */
-.page { animation: fadeIn .3s ease both; }
-.page > * { animation: fadeUp .5s cubic-bezier(.22,.61,.36,1) both; }
-.page > *:nth-child(1) { animation-delay: .02s; }
-.page > *:nth-child(2) { animation-delay: .09s; }
-.page > *:nth-child(3) { animation-delay: .16s; }
-.page > *:nth-child(4) { animation-delay: .23s; }
-.email-preview { animation: popIn .45s cubic-bezier(.22,.61,.36,1) both; }
-.fit-hero .score { animation: popIn .5s cubic-bezier(.34,1.56,.64,1) both; }
+/* the page content rises in, clearly staggered — re-runs on view change */
+.page { animation: fadeIn .35s ease both; }
+.page > * { animation: fadeUp .62s cubic-bezier(.16,.84,.34,1) both; }
+.page > *:nth-child(1) { animation-delay: .04s; }
+.page > *:nth-child(2) { animation-delay: .14s; }
+.page > *:nth-child(3) { animation-delay: .24s; }
+.page > *:nth-child(4) { animation-delay: .34s; }
+.page > *:nth-child(5) { animation-delay: .44s; }
+.email-preview { animation: popIn .6s cubic-bezier(.16,.84,.34,1) both .1s; }
+.fit-hero .score { animation: popIn .7s cubic-bezier(.34,1.7,.5,1) both .1s; }
 
-.topbar h1 { animation: fadeUp .4s ease both; }
-.nav button { transition: background .15s, color .15s, transform .1s; }
-.nav button:active { transform: scale(.97); }
-.mode-btn, tbody tr, .overlap-row { transition: all .16s ease; }
-.badge { transition: transform .12s; }
+/* sidebar drops in on load */
+.sidebar .brand { animation: fadeUp .5s ease both; }
+.nav button { animation: slideIn .5s ease both; }
+.nav button:nth-child(1) { animation-delay: .06s; }
+.nav button:nth-child(2) { animation-delay: .13s; }
+.nav button:nth-child(3) { animation-delay: .2s; }
+.nav button:nth-child(4) { animation-delay: .27s; }
+
+/* table rows and overlap rows cascade in */
+tbody tr { animation: rowIn .5s cubic-bezier(.16,.84,.34,1) both; }
+tbody tr:nth-child(1){animation-delay:.05s} tbody tr:nth-child(2){animation-delay:.1s}
+tbody tr:nth-child(3){animation-delay:.15s} tbody tr:nth-child(4){animation-delay:.2s}
+tbody tr:nth-child(5){animation-delay:.25s} tbody tr:nth-child(6){animation-delay:.3s}
+tbody tr:nth-child(n+7){animation-delay:.35s}
+.overlap-row { animation: slideIn .45s ease both; }
+.overlap-row:nth-child(2){animation-delay:.06s} .overlap-row:nth-child(3){animation-delay:.12s}
+.overlap-row:nth-child(4){animation-delay:.18s} .overlap-row:nth-child(n+5){animation-delay:.24s}
+
+.topbar h1 { animation: fadeUp .5s ease both; }
+.nav button { transition: background .15s, color .15s, transform .12s; }
+.nav button:active { transform: scale(.95); }
+.mode-btn, .badge { transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease; }
+.badge:hover { transform: translateY(-1px); }
+tbody tr:hover { transform: translateX(3px); }
+.btn { transition: transform .12s ease, background .14s, border-color .14s, box-shadow .14s; }
+
+/* scroll-reveal: elements tagged .reveal fade up as they enter the viewport */
+.reveal { opacity: 0; transform: translateY(34px); transition: opacity .7s cubic-bezier(.16,.84,.34,1), transform .7s cubic-bezier(.16,.84,.34,1); }
+.reveal.in { opacity: 1; transform: none; }
 
 @media (prefers-reduced-motion: reduce) {
-  *, .page, .page > *, .email-preview, .fit-hero .score, .topbar h1 { animation: none !important; transition: none !important; }
+  *, .page, .page > *, .email-preview, .fit-hero .score, .topbar h1,
+  .sidebar .brand, .nav button, tbody tr, .overlap-row, .reveal {
+    animation: none !important; transition: none !important; opacity: 1 !important; transform: none !important;
+  }
 }
 
 @media (max-width: 780px) {

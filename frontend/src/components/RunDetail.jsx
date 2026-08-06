@@ -10,7 +10,7 @@ export default function RunDetail({ run, busy, onDraft, onRefresh }) {
   return (
     <div className="stack">
       {o && (
-        <div className="card">
+        <div className="card reveal">
           <div className="fit-hero">
             <span className="score">{o.fit_score}</span>
             <div><span className="of">/ 100 fit</span><p className="small text-2" style={{ margin: 0 }}>{o.fit_summary}</p></div>
@@ -28,7 +28,7 @@ export default function RunDetail({ run, busy, onDraft, onRefresh }) {
       )}
 
       {run.plan && (
-        <div className="card">
+        <div className="card reveal">
           <div className="card-head">
             <h3>Plan</h3>
             <div className="btn-row">
@@ -94,7 +94,7 @@ function DraftPanel({ run, onRefresh }) {
   }
 
   return (
-    <div className="card">
+    <div className="card reveal">
       <div className="card-head">
         <h3>Draft</h3>
         {v && <span className={`badge ${v.verdict === 'pass' ? 'ok' : v.verdict === 'fail' ? 'bad' : 'warn'}`}>{v.verdict}</span>}
@@ -127,7 +127,7 @@ function DraftPanel({ run, onRefresh }) {
       )}
 
       {v && (
-        <div className={`verifier ${v.verdict}`}>
+        <div className={`verifier reveal ${v.verdict}`}>
           <b className="small">Verifier: {v.verdict.toUpperCase()}</b>
           <span className="small text-2"> · grounded {String(v.grounded)} · {v.word_count} words {v.within_word_target ? '' : '(out of range)'}</span>
           {v.format_issues?.length > 0 && <ul className="small">{v.format_issues.map((f, i) => <li key={i} className="bad">{f}</li>)}</ul>}
