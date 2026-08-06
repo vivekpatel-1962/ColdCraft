@@ -18,8 +18,10 @@ export default function App() {
   const [tab, setTab] = useState('new')
   const [online, setOnline] = useState(null)
   const [gmail, setGmail] = useState(null)
-  // Default to the warm light theme (the referenced look); remember the choice.
-  const [theme, setTheme] = useState(() => localStorage.getItem('coldmail-theme') || 'light')
+  // Default to dark — "Northern Lights" is a dark aurora theme, so that's its
+  // authentic look. Toggle switches to the light counterpart. (Fresh key so an
+  // older saved preference doesn't override the new default.)
+  const [theme, setTheme] = useState(() => localStorage.getItem('coldmail-theme-nl') || 'dark')
 
   useEffect(() => {
     api.health().then(() => setOnline(true)).catch(() => setOnline(false))
@@ -28,7 +30,7 @@ export default function App() {
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
-    localStorage.setItem('coldmail-theme', theme)
+    localStorage.setItem('coldmail-theme-nl', theme)
   }, [theme])
 
   // Scroll-reveal: .reveal elements fade up as they enter the viewport. A

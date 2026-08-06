@@ -1,81 +1,97 @@
-/* Design tokens — navy + golden-yellow brand, after mitchelladam.co.uk.
-   Montserrat headings, Nunito body. Yellow is a fill/CTA colour (dark text on it);
-   navy carries text-level accents on light, yellow on dark. Light + dark. */
+/* Design tokens — shadcn/ui design language with tweakcn's "Northern Lights"
+   theme: aurora GREEN primary + BLUE accent on slate. Dark is the native theme;
+   a matching light counterpart keeps the toggle useful. Inter, subtle borders,
+   muted foregrounds, 0.5rem radius — the shadcn look. */
 
 :root {
-  /* brand — deep golden amber scale */
-  --brand-50:  #fdf4df;
-  --brand-100: #fbe6b3;
-  --brand-300: #f5cf6a;
-  --brand-500: #f2b01f;   /* the gold — CTA / highlight fills */
-  --brand-600: #dd9c0f;   /* deeper (hover) */
-  --brand-700: #b87f0a;
-  --on-brand:  #1a1204;   /* near-black-brown text on gold */
+  /* Northern Lights — light counterpart (same aurora hues on light slate) */
+  --brand-50:  hsl(140 44% 96%);
+  --brand-100: hsl(140 42% 90%);
+  --brand-300: hsl(140 40% 62%);
+  --brand-500: hsl(139.66 52% 39%);    /* green — primary / CTA */
+  --brand-600: hsl(139.66 55% 32%);    /* green hover */
+  --brand-700: hsl(139.66 58% 26%);
+  --on-brand:  hsl(0 0% 100%);
 
-  /* neutrals — cool, near-white on navy ink (light theme default) */
-  --bg:        #f4f6f8;
-  --surface:   #ffffff;
-  --surface-2: #f2f5f8;
-  --border:    #e5e9ef;
-  --border-2:  #eef1f6;
-  --text:      #0d121d;   /* deep navy ink */
-  --text-2:    #495264;
-  --muted:     #8b95a5;
+  --bg:        hsl(210 24% 98%);
+  --surface:   hsl(0 0% 100%);
+  --surface-2: hsl(210 20% 96%);
+  --border:    hsl(214 20% 90%);
+  --border-2:  hsl(214 22% 94%);
+  --text:      hsl(220 26% 14%);
+  --text-2:    hsl(215 14% 40%);
+  --muted:     hsl(215 12% 55%);
 
-  /* status */
-  --ok:   #1f9d55;   --ok-bg:   #e8f6ee;
-  --warn: #c67c12;   --warn-bg: #fbf1df;
-  --bad:  #d64545;   --bad-bg:  #fbeaea;
+  --ok:   hsl(139.66 52% 38%);   --ok-bg:   hsl(140 45% 95%);
+  --warn: hsl(38 82% 42%);       --warn-bg: hsl(40 85% 95%);
+  --bad:  hsl(0 72% 51%);        --bad-bg:  hsl(0 80% 96%);
 
-  /* text-level accent: navy on light (yellow text would be unreadable on white) */
-  --accent: #0d121d;
-  --on-accent: #ffffff;   /* text on the navy accent fill (avatar, etc.) */
+  --accent:    hsl(218.54 79% 50%);   /* blue — links / highlights (deeper for light) */
+  --on-accent: hsl(0 0% 100%);
 
-  /* type */
-  --font: "Nunito", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --font-heading: "Montserrat", var(--font);
+  --font: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-heading: var(--font);
   --mono: ui-monospace, "Cascadia Code", "SF Mono", Consolas, monospace;
 
-  /* radius */
-  --r-sm: 9px;  --r-md: 13px;  --r-lg: 18px;  --r-xl: 24px;  --r-full: 999px;
+  /* shadcn radius: --radius 0.5rem, larger elements +2/4px */
+  --r-sm: 6px;  --r-md: 8px;  --r-lg: 12px;  --r-xl: 16px;  --r-full: 999px;
 
-  /* spacing (4px base) */
+  /* spacing */
   --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 20px; --s6: 24px; --s8: 32px; --s10: 40px;
 
-  /* elevation — cool navy-tinted shadow */
-  --shadow-sm: 0 1px 2px rgba(13,18,29,.06), 0 1px 3px rgba(13,18,29,.05);
-  --shadow-md: 0 6px 16px rgba(13,18,29,.09), 0 2px 6px rgba(13,18,29,.05);
-  --shadow-lg: 0 18px 40px rgba(13,18,29,.16), 0 5px 14px rgba(13,18,29,.08);
-  --ring: 0 0 0 4px var(--brand-100);
+  /* subtle elevation — shadcn leans on borders, not big shadows */
+  --shadow-sm: 0 1px 2px hsl(220 26% 14% / .05);
+  --shadow-md: 0 2px 8px hsl(220 26% 14% / .07), 0 1px 3px hsl(220 26% 14% / .05);
+  --shadow-lg: 0 12px 28px hsl(220 26% 14% / .12), 0 4px 10px hsl(220 26% 14% / .06);
+  --ring: 0 0 0 3px hsl(139.66 52% 39% / .32);
 }
 
-/* dark values: explicit toggle OR system-dark (unless user forced light) */
+/* native Northern Lights (dark): applies on explicit toggle OR system-dark */
+:root[data-theme="dark"], html:root[data-theme="dark"] { color-scheme: dark; }
 :root[data-theme="dark"] {
-  --bg: #0d121d; --surface: #151c2b; --surface-2: #1c2536;
-  --border: #273244; --border-2: #1a2231;
-  --text: #f2f5fa; --text-2: #aab4c6; --muted: #6d788b;
-  --brand-100: #33300f;   /* dark yellow tint for active states */
-  --brand-50:  #23220f;
-  --accent: #f5b820;      /* yellow reads on navy — links/highlights go yellow */
-  --on-accent: #0d121d;
-  --ok-bg: #10281b; --warn-bg: #2b2109; --bad-bg: #2c1414;
-  --shadow-sm: 0 1px 2px rgba(0,0,0,.5);
-  --shadow-md: 0 8px 22px rgba(0,0,0,.5);
-  --shadow-lg: 0 20px 46px rgba(0,0,0,.6);
-  --ring: 0 0 0 4px rgba(245,184,32,.24);
+  --brand-50:  hsl(140 24% 13%);
+  --brand-100: hsl(140 26% 17%);
+  --brand-300: hsl(139.66 40% 40%);
+  --brand-500: hsl(139.66 52.73% 43.14%);   /* aurora green */
+  --brand-600: hsl(139.66 52% 37%);
+  --brand-700: hsl(139.66 54% 31%);
+  --on-brand:  hsl(0 0% 100%);
+
+  --bg:        hsl(220 14.75% 11.96%);
+  --surface:   hsl(197 6.93% 19.8%);
+  --surface-2: hsl(200 6% 15.5%);
+  --border:    hsl(206 8% 26%);
+  --border-2:  hsl(202 7% 22%);
+  --text:      hsl(0 0% 89.8%);
+  --text-2:    hsl(0 0% 63.9%);
+  --muted:     hsl(0 0% 52%);
+
+  --ok:   hsl(139.66 52% 50%);   --ok-bg:   hsl(140 30% 15%);
+  --warn: hsl(40 80% 58%);       --warn-bg: hsl(40 40% 15%);
+  --bad:  hsl(0 74% 62%);        --bad-bg:  hsl(0 40% 16%);
+
+  --accent:    hsl(218.54 79.19% 66.08%);   /* bright aurora blue */
+  --on-accent: hsl(220 30% 12%);
+
+  --shadow-sm: 0 1px 2px hsl(0 0% 0% / .4);
+  --shadow-md: 0 4px 14px hsl(0 0% 0% / .45);
+  --shadow-lg: 0 18px 40px hsl(0 0% 0% / .55);
+  --ring: 0 0 0 3px hsl(139.66 52.73% 43.14% / .4);
 }
+
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #0d121d; --surface: #151c2b; --surface-2: #1c2536;
-    --border: #273244; --border-2: #1a2231;
-    --text: #f2f5fa; --text-2: #aab4c6; --muted: #6d788b;
-    --brand-100: #33300f; --brand-50: #23220f;
-    --accent: #f5b820; --on-accent: #0d121d;
-    --ok-bg: #10281b; --warn-bg: #2b2109; --bad-bg: #2c1414;
-    --shadow-sm: 0 1px 2px rgba(0,0,0,.5);
-    --shadow-md: 0 8px 22px rgba(0,0,0,.5);
-    --shadow-lg: 0 20px 46px rgba(0,0,0,.6);
-    --ring: 0 0 0 4px rgba(245,184,32,.24);
+    --brand-50: hsl(140 24% 13%); --brand-100: hsl(140 26% 17%); --brand-300: hsl(139.66 40% 40%);
+    --brand-500: hsl(139.66 52.73% 43.14%); --brand-600: hsl(139.66 52% 37%); --brand-700: hsl(139.66 54% 31%);
+    --on-brand: hsl(0 0% 100%);
+    --bg: hsl(220 14.75% 11.96%); --surface: hsl(197 6.93% 19.8%); --surface-2: hsl(200 6% 15.5%);
+    --border: hsl(206 8% 26%); --border-2: hsl(202 7% 22%);
+    --text: hsl(0 0% 89.8%); --text-2: hsl(0 0% 63.9%); --muted: hsl(0 0% 52%);
+    --ok: hsl(139.66 52% 50%); --ok-bg: hsl(140 30% 15%); --warn: hsl(40 80% 58%); --warn-bg: hsl(40 40% 15%);
+    --bad: hsl(0 74% 62%); --bad-bg: hsl(0 40% 16%);
+    --accent: hsl(218.54 79.19% 66.08%); --on-accent: hsl(220 30% 12%);
+    --shadow-sm: 0 1px 2px hsl(0 0% 0% / .4); --shadow-md: 0 4px 14px hsl(0 0% 0% / .45);
+    --shadow-lg: 0 18px 40px hsl(0 0% 0% / .55); --ring: 0 0 0 3px hsl(139.66 52.73% 43.14% / .4);
   }
 }
 
@@ -86,12 +102,13 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: var(--font);
-  font-size: 14.5px;
-  line-height: 1.6;
+  font-size: 14px;
+  line-height: 1.55;
+  letter-spacing: -.006em;
   -webkit-font-smoothing: antialiased;
 }
-h1, h2, h3, h4, .font-head { font-family: var(--font-heading); }
+h1, h2, h3, h4 { font-family: var(--font-heading); }
 a { color: var(--accent); text-decoration: none; }
 a:hover { text-decoration: underline; }
 code, kbd { font-family: var(--mono); font-size: .88em; }
-::selection { background: var(--brand-300); color: var(--on-brand); }
+::selection { background: var(--accent); color: var(--on-accent); }
