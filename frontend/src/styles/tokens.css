@@ -1,97 +1,95 @@
-/* Design tokens — shadcn/ui design language with tweakcn's "Northern Lights"
-   theme: aurora GREEN primary + BLUE accent on slate. Dark is the native theme;
-   a matching light counterpart keeps the toggle useful. Inter, subtle borders,
-   muted foregrounds, 0.5rem radius — the shadcn look. */
+/* Design tokens — tweakcn "世界之外 / Beyond the World": near-black canvas, vivid
+   RED primary + bright TEAL secondary, cool-white text. Alegreya Sans + JetBrains
+   Mono, 0.75rem radius. Dark is the native theme; light is a derived counterpart. */
 
 :root {
-  /* Northern Lights — light counterpart (same aurora hues on light slate) */
-  --brand-50:  hsl(140 44% 96%);
-  --brand-100: hsl(140 42% 90%);
-  --brand-300: hsl(140 40% 62%);
-  --brand-500: hsl(139.66 52% 39%);    /* green — primary / CTA */
-  --brand-600: hsl(139.66 55% 32%);    /* green hover */
-  --brand-700: hsl(139.66 58% 26%);
+  /* red primary scale — light counterpart (a touch deeper for white bg) */
+  --brand-50:  hsl(0 100% 97%);
+  --brand-100: hsl(0 90% 93%);
+  --brand-300: hsl(0 92% 74%);
+  --brand-500: hsl(0 82% 56%);     /* red — primary / CTA */
+  --brand-600: hsl(0 76% 49%);     /* hover */
+  --brand-700: hsl(0 70% 42%);
   --on-brand:  hsl(0 0% 100%);
 
-  --bg:        hsl(210 24% 98%);
+  --bg:        hsl(0 0% 99%);
   --surface:   hsl(0 0% 100%);
-  --surface-2: hsl(210 20% 96%);
-  --border:    hsl(214 20% 90%);
-  --border-2:  hsl(214 22% 94%);
-  --text:      hsl(220 26% 14%);
-  --text-2:    hsl(215 14% 40%);
-  --muted:     hsl(215 12% 55%);
+  --surface-2: hsl(240 6% 96.5%);
+  --border:    hsl(240 6% 90%);
+  --border-2:  hsl(240 6% 94%);
+  --text:      hsl(240 12% 8%);
+  --text-2:    hsl(240 5% 40%);
+  --muted:     hsl(240 5% 55%);
 
-  --ok:   hsl(139.66 52% 38%);   --ok-bg:   hsl(140 45% 95%);
-  --warn: hsl(38 82% 42%);       --warn-bg: hsl(40 85% 95%);
-  --bad:  hsl(0 72% 51%);        --bad-bg:  hsl(0 80% 96%);
+  --ok:   hsl(160 60% 36%);   --ok-bg:   hsl(160 45% 95%);
+  --warn: hsl(38 82% 42%);    --warn-bg: hsl(40 85% 95%);
+  --bad:  hsl(0 72% 51%);     --bad-bg:  hsl(0 80% 96%);
 
-  --accent:    hsl(218.54 79% 50%);   /* blue — links / highlights (deeper for light) */
+  --accent:    hsl(172 70% 33%);    /* teal — links / highlights (deeper for light) */
   --on-accent: hsl(0 0% 100%);
 
-  --font: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font: "Alegreya Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-heading: var(--font);
-  --mono: ui-monospace, "Cascadia Code", "SF Mono", Consolas, monospace;
+  --mono: "JetBrains Mono", ui-monospace, "Cascadia Code", Consolas, monospace;
 
-  /* shadcn radius: --radius 0.5rem, larger elements +2/4px */
-  --r-sm: 6px;  --r-md: 8px;  --r-lg: 12px;  --r-xl: 16px;  --r-full: 999px;
+  /* radius: --radius 0.75rem */
+  --r-sm: 8px;  --r-md: 12px;  --r-lg: 16px;  --r-xl: 22px;  --r-full: 999px;
 
-  /* spacing */
   --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 20px; --s6: 24px; --s8: 32px; --s10: 40px;
 
-  /* subtle elevation — shadcn leans on borders, not big shadows */
-  --shadow-sm: 0 1px 2px hsl(220 26% 14% / .05);
-  --shadow-md: 0 2px 8px hsl(220 26% 14% / .07), 0 1px 3px hsl(220 26% 14% / .05);
-  --shadow-lg: 0 12px 28px hsl(220 26% 14% / .12), 0 4px 10px hsl(220 26% 14% / .06);
-  --ring: 0 0 0 3px hsl(139.66 52% 39% / .32);
+  --shadow-sm: 0 1px 2px hsl(240 12% 8% / .05);
+  --shadow-md: 0 2px 8px hsl(240 12% 8% / .08), 0 1px 3px hsl(240 12% 8% / .05);
+  --shadow-lg: 0 14px 32px hsl(240 12% 8% / .14), 0 4px 10px hsl(240 12% 8% / .07);
+  --ring: 0 0 0 3px hsl(0 82% 56% / .3);
 }
 
-/* native Northern Lights (dark): applies on explicit toggle OR system-dark */
-:root[data-theme="dark"], html:root[data-theme="dark"] { color-scheme: dark; }
+/* native "Beyond the World" (dark): explicit toggle OR system-dark */
+:root[data-theme="dark"] { color-scheme: dark; }
 :root[data-theme="dark"] {
-  --brand-50:  hsl(140 24% 13%);
-  --brand-100: hsl(140 26% 17%);
-  --brand-300: hsl(139.66 40% 40%);
-  --brand-500: hsl(139.66 52.73% 43.14%);   /* aurora green */
-  --brand-600: hsl(139.66 52% 37%);
-  --brand-700: hsl(139.66 54% 31%);
+  --brand-50:  hsl(0 45% 12%);
+  --brand-100: hsl(0 48% 18%);
+  --brand-300: hsl(0 72% 44%);
+  --brand-500: hsl(0 100% 65.1%);   /* vivid red/coral */
+  --brand-600: hsl(0 90% 58%);
+  --brand-700: hsl(0 82% 50%);
   --on-brand:  hsl(0 0% 100%);
 
-  --bg:        hsl(220 14.75% 11.96%);
-  --surface:   hsl(197 6.93% 19.8%);
-  --surface-2: hsl(200 6% 15.5%);
-  --border:    hsl(206 8% 26%);
-  --border-2:  hsl(202 7% 22%);
-  --text:      hsl(0 0% 89.8%);
-  --text-2:    hsl(0 0% 63.9%);
-  --muted:     hsl(0 0% 52%);
+  --bg:        hsl(0 0% 1.18%);
+  --surface:   hsl(240 10% 3.92%);
+  --surface-2: hsl(240 5.88% 10%);
+  --border:    hsl(240 3.7% 15.88%);
+  --border-2:  hsl(240 4% 11%);
+  --text:      hsl(210 40% 98%);
+  --text-2:    hsl(240 5% 64.9%);
+  --muted:     hsl(240 5% 46%);
 
-  --ok:   hsl(139.66 52% 50%);   --ok-bg:   hsl(140 30% 15%);
-  --warn: hsl(40 80% 58%);       --warn-bg: hsl(40 40% 15%);
-  --bad:  hsl(0 74% 62%);        --bad-bg:  hsl(0 40% 16%);
+  --ok:   hsl(160 60% 48%);   --ok-bg:   hsl(160 40% 12%);
+  --warn: hsl(40 80% 58%);    --warn-bg: hsl(40 40% 13%);
+  --bad:  hsl(0 80% 62%);     --bad-bg:  hsl(0 45% 14%);
 
-  --accent:    hsl(218.54 79.19% 66.08%);   /* bright aurora blue */
-  --on-accent: hsl(220 30% 12%);
+  --accent:    hsl(172.46 66% 50.4%);   /* bright teal */
+  --on-accent: hsl(0 0% 1.18%);
 
-  --shadow-sm: 0 1px 2px hsl(0 0% 0% / .4);
-  --shadow-md: 0 4px 14px hsl(0 0% 0% / .45);
-  --shadow-lg: 0 18px 40px hsl(0 0% 0% / .55);
-  --ring: 0 0 0 3px hsl(139.66 52.73% 43.14% / .4);
+  --shadow-sm: 0 1px 2px hsl(0 0% 0% / .5);
+  --shadow-md: 0 4px 16px hsl(0 0% 0% / .55);
+  --shadow-lg: 0 20px 44px hsl(0 0% 0% / .65);
+  --ring: 0 0 0 3px hsl(0 100% 65.1% / .38);
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --brand-50: hsl(140 24% 13%); --brand-100: hsl(140 26% 17%); --brand-300: hsl(139.66 40% 40%);
-    --brand-500: hsl(139.66 52.73% 43.14%); --brand-600: hsl(139.66 52% 37%); --brand-700: hsl(139.66 54% 31%);
+    color-scheme: dark;
+    --brand-50: hsl(0 45% 12%); --brand-100: hsl(0 48% 18%); --brand-300: hsl(0 72% 44%);
+    --brand-500: hsl(0 100% 65.1%); --brand-600: hsl(0 90% 58%); --brand-700: hsl(0 82% 50%);
     --on-brand: hsl(0 0% 100%);
-    --bg: hsl(220 14.75% 11.96%); --surface: hsl(197 6.93% 19.8%); --surface-2: hsl(200 6% 15.5%);
-    --border: hsl(206 8% 26%); --border-2: hsl(202 7% 22%);
-    --text: hsl(0 0% 89.8%); --text-2: hsl(0 0% 63.9%); --muted: hsl(0 0% 52%);
-    --ok: hsl(139.66 52% 50%); --ok-bg: hsl(140 30% 15%); --warn: hsl(40 80% 58%); --warn-bg: hsl(40 40% 15%);
-    --bad: hsl(0 74% 62%); --bad-bg: hsl(0 40% 16%);
-    --accent: hsl(218.54 79.19% 66.08%); --on-accent: hsl(220 30% 12%);
-    --shadow-sm: 0 1px 2px hsl(0 0% 0% / .4); --shadow-md: 0 4px 14px hsl(0 0% 0% / .45);
-    --shadow-lg: 0 18px 40px hsl(0 0% 0% / .55); --ring: 0 0 0 3px hsl(139.66 52.73% 43.14% / .4);
+    --bg: hsl(0 0% 1.18%); --surface: hsl(240 10% 3.92%); --surface-2: hsl(240 5.88% 10%);
+    --border: hsl(240 3.7% 15.88%); --border-2: hsl(240 4% 11%);
+    --text: hsl(210 40% 98%); --text-2: hsl(240 5% 64.9%); --muted: hsl(240 5% 46%);
+    --ok: hsl(160 60% 48%); --ok-bg: hsl(160 40% 12%); --warn: hsl(40 80% 58%); --warn-bg: hsl(40 40% 13%);
+    --bad: hsl(0 80% 62%); --bad-bg: hsl(0 45% 14%);
+    --accent: hsl(172.46 66% 50.4%); --on-accent: hsl(0 0% 1.18%);
+    --shadow-sm: 0 1px 2px hsl(0 0% 0% / .5); --shadow-md: 0 4px 16px hsl(0 0% 0% / .55);
+    --shadow-lg: 0 20px 44px hsl(0 0% 0% / .65); --ring: 0 0 0 3px hsl(0 100% 65.1% / .38);
   }
 }
 
@@ -102,13 +100,12 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: var(--font);
-  font-size: 14px;
-  line-height: 1.55;
-  letter-spacing: -.006em;
+  font-size: 14.5px;
+  line-height: 1.6;
   -webkit-font-smoothing: antialiased;
 }
 h1, h2, h3, h4 { font-family: var(--font-heading); }
 a { color: var(--accent); text-decoration: none; }
 a:hover { text-decoration: underline; }
-code, kbd { font-family: var(--mono); font-size: .88em; }
+code, kbd { font-family: var(--mono); font-size: .86em; }
 ::selection { background: var(--accent); color: var(--on-accent); }

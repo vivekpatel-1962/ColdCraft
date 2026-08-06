@@ -21,7 +21,7 @@ export default function App() {
   // Default to dark — "Northern Lights" is a dark aurora theme, so that's its
   // authentic look. Toggle switches to the light counterpart. (Fresh key so an
   // older saved preference doesn't override the new default.)
-  const [theme, setTheme] = useState(() => localStorage.getItem('coldmail-theme-nl') || 'dark')
+  const [theme, setTheme] = useState(() => localStorage.getItem('coldmail-theme-btw') || 'dark')
 
   useEffect(() => {
     api.health().then(() => setOnline(true)).catch(() => setOnline(false))
@@ -30,7 +30,7 @@ export default function App() {
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
-    localStorage.setItem('coldmail-theme-nl', theme)
+    localStorage.setItem('coldmail-theme-btw', theme)
   }, [theme])
 
   // Scroll-reveal: .reveal elements fade up as they enter the viewport. A
