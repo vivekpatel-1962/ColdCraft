@@ -1,65 +1,78 @@
-/* Design tokens — the single source of truth for colour, type, spacing, elevation.
+/* Design tokens — warm editorial B2B palette (lavender accent on cream/ink),
+   after Arounda's "UI/UX for B2B SaaS". Neutrals are WARM, not cool grey.
    Every component reads these variables; nothing hard-codes a hex. Light + dark. */
 
 :root {
-  /* brand */
-  --brand-50:  #eef4ff;
-  --brand-100: #dbe6fe;
-  --brand-300: #93b4fd;
-  --brand-500: #4f7cf7;
-  --brand-600: #3b63e6;
-  --brand-700: #2f4fc4;
+  /* accent — soft lavender/violet scale (shot accent ≈ #ba9adf) */
+  --brand-50:  #f5eefb;
+  --brand-100: #eaddf6;
+  --brand-300: #c9aee9;
+  --brand-500: #a985db;
+  --brand-600: #9068c8;   /* primary action — reads white text well */
+  --brand-700: #785199;
 
-  /* neutrals (light theme default) */
-  --bg:        #f6f7f9;
+  /* warm secondaries from the shot (used sparingly) */
+  --clay:  #b47461;   /* terracotta */
+  --sand:  #dec5b8;   /* beige */
+
+  /* neutrals — warm (light theme default) */
+  --bg:        #f4efec;   /* warm cream */
   --surface:   #ffffff;
-  --surface-2: #f1f3f7;
-  --border:    #e4e7ec;
-  --border-2:  #eef0f4;
-  --text:      #101828;
-  --text-2:    #475467;
-  --muted:     #98a2b3;
+  --surface-2: #f6efe9;   /* warm beige tint */
+  --border:    #e8ded7;
+  --border-2:  #f1e9e3;
+  --text:      #1c1517;   /* deep warm ink */
+  --text-2:    #6c5d57;   /* warm taupe */
+  --muted:     #a9998f;
 
   /* status */
-  --ok:   #16a34a;   --ok-bg:   #ecfdf3;
-  --warn: #d97706;   --warn-bg: #fffaeb;
-  --bad:  #e5484d;   --bad-bg:  #fef3f2;
+  --ok:   #3f8f5b;   --ok-bg:   #eaf5ee;
+  --warn: #bd7d1e;   --warn-bg: #faf1e2;
+  --bad:  #cf5148;   --bad-bg:  #fbeceb;
   --accent: var(--brand-600);
+  --on-accent: #ffffff;   /* text/icon colour that sits on the accent fill */
 
   /* type */
   --font: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --mono: ui-monospace, "Cascadia Code", "SF Mono", Consolas, monospace;
 
-  /* radius */
-  --r-sm: 8px;  --r-md: 12px;  --r-lg: 16px;  --r-xl: 22px;  --r-full: 999px;
+  /* radius — the warm look leans rounder */
+  --r-sm: 9px;  --r-md: 13px;  --r-lg: 18px;  --r-xl: 24px;  --r-full: 999px;
 
-  /* spacing scale (4px base) */
+  /* spacing (4px base) */
   --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 20px; --s6: 24px; --s8: 32px; --s10: 40px;
 
-  /* elevation */
-  --shadow-sm: 0 1px 2px rgba(16,24,40,.06), 0 1px 3px rgba(16,24,40,.04);
-  --shadow-md: 0 4px 12px rgba(16,24,40,.08), 0 2px 6px rgba(16,24,40,.04);
-  --shadow-lg: 0 12px 32px rgba(16,24,40,.12), 0 4px 12px rgba(16,24,40,.06);
+  /* elevation — warm-tinted shadows */
+  --shadow-sm: 0 1px 2px rgba(60,40,35,.06), 0 1px 3px rgba(60,40,35,.05);
+  --shadow-md: 0 6px 16px rgba(60,40,35,.08), 0 2px 6px rgba(60,40,35,.05);
+  --shadow-lg: 0 16px 38px rgba(60,40,35,.14), 0 5px 14px rgba(60,40,35,.07);
   --ring: 0 0 0 4px var(--brand-100);
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg:        #0b0d12;
-    --surface:   #14171d;
-    --surface-2: #1b1f27;
-    --border:    #262b34;
-    --border-2:  #1f232b;
-    --text:      #e7eaf0;
-    --text-2:    #a2abba;
-    --muted:     #6b7482;
-    --brand-100: #1e2a4a;
-    --accent:    #6f9bff;
-    --ok-bg:  #0e2318; --warn-bg: #2a2008; --bad-bg: #2a1315;
-    --shadow-sm: 0 1px 2px rgba(0,0,0,.4);
-    --shadow-md: 0 6px 18px rgba(0,0,0,.45);
-    --shadow-lg: 0 16px 40px rgba(0,0,0,.55);
-    --ring: 0 0 0 4px rgba(111,155,255,.22);
+    --brand-100: #33254a;
+    --brand-300: #9b7ad0;
+    --brand-500: #b48fe4;
+    --brand-600: #c4a3e8;   /* brighter lavender on dark */
+    --brand-700: #d3b9ef;
+
+    --bg:        #0f0b0d;   /* warm near-black */
+    --surface:   #1a1315;
+    --surface-2: #241a1d;
+    --border:    #332528;
+    --border-2:  #251b1e;
+    --text:      #f2e9ea;
+    --text-2:    #b4a29d;
+    --muted:     #7c6b66;
+
+    --ok-bg:  #12271a; --warn-bg: #2a2008; --bad-bg: #2c1614;
+    --accent: var(--brand-600);
+    --on-accent: #241a1d;   /* dark ink reads on the light lavender accent */
+    --shadow-sm: 0 1px 2px rgba(0,0,0,.5);
+    --shadow-md: 0 8px 22px rgba(0,0,0,.5);
+    --shadow-lg: 0 20px 46px rgba(0,0,0,.6);
+    --ring: 0 0 0 4px rgba(180,143,228,.22);
   }
 }
 
