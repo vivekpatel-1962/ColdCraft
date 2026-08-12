@@ -14,7 +14,7 @@ Setup, once, in the Google Cloud console for that account:
   3. Credentials -> Create credentials -> OAuth client ID -> Desktop app -> download JSON.
   4. Save it as backend/credentials.json (or set GMAIL_CREDENTIALS_PATH in .env).
 
-The only scope requested is gmail.send — this program cannot read your mailbox.
+The only scope requested is gmail.compose (manage drafts + send) — this program cannot read your mailbox.
 """
 import logging
 import sys

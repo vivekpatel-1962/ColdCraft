@@ -1,17 +1,18 @@
-# coldmail — AI Cold Email Personalization
+# ColdCraft — AI Cold Email Generator
 
 Personal fit engine: maintains a structured, human-verified profile of one candidate
 and, per target company, compiles the strongest evidence-backed case for a
-conversation, then renders it as a short (90–140 word) email.
+conversation, then renders it as a sendable email — a tight outreach note
+(90–145 words), or a longer application (120–200 words) when there's a matching role.
 
-Architecture: a 5-stage compiler pipeline with typed, inspectable JSON
+Architecture: an 8-stage compiler pipeline (stages 0–7) with typed, inspectable JSON
 intermediate representations. No RAG, no vector DB — everything fits in context.
 
 ```
 intake (0)  ─► website | email | hiring poster (vision) → (company_url, recipient)
 resume.pdf ─► [1] Resume Analyzer ─► CandidateProfile (claims C1..Cn, human-reviewed, reused forever)
-company URL ─► [2] Company Intel  ─► CompanyProfile   (facts F1..Fm with source URLs)
-              [3] Matcher         ─► RankedOverlaps   (bridges Ci×Fj with rubric scores)
+company URL ─► [2] Company Intel  ─► CompanyProfile   (facts F1..Fm with source URLs + quotes)
+              [3] Matcher         ─► RankedOverlaps   (bridges Ci×Fj with rubric scores, one fit score)
               [4] Planner         ─► EmailPlan        (one angle, 2-3 bridges, tone, banned phrases)
               [5] Writer          ─► EmailDraft       (open-book on the candidate, closed on the company)
               [6] Verifier        ─► claim-check + format + sales craft + jargon + repetition
@@ -50,8 +51,9 @@ python -m scripts.analyze_company https://company.com --job https://company.com/
 python -m scripts.analyze_company https://company.com --scrape-only   # no API key needed
 ```
 
-Priority-scrapes up to 12 pages (job posting > careers > about > eng blog >
-product > homepage > github); JS-rendered pages fall back to Jina Reader.
+Priority-scrapes company pages (job posting > careers > about > eng blog >
+product > homepage > github); JS-rendered pages fall back to Jina Reader — the
+static path is httpx + trafilatura, with no local headless browser.
 `--scrape-only` prints the page manifest + tier without calling the LLM.
 Builds a CompanyProfile facts ledger (each fact carries its source URL + quote).
 
@@ -63,7 +65,7 @@ python -m scripts.plan_email company.com          # active resume x stored compa
 ```
 
 Matches the active candidate profile against the company facts ledger
-(deterministic skill overlap + LLM rubric → fit score + ranked bridges), then
+(deterministic skill overlap + LLM rubric → one fit score + ranked bridges), then
 plans one email (single angle, 2-3 bridges, tone, banned phrases, and the claims
 deliberately excluded). Saves the run to the `runs` table for the writer stage.
 
@@ -74,10 +76,11 @@ cd backend
 python -m scripts.write_email company.com        # uses the latest planned run
 ```
 
-Closed-world writer drafts the email seeing only the plan + the claims/facts its
-bridges reference (grounding by construction), then the verifier audits it against
-the full ledgers: every factual sentence must trace to a claim/fact ID, plus
-deterministic checks for length (90-140 words), banned phrases, and opener
+The writer drafts the email open-book on the candidate (the whole resume) but
+closed-world on the company (only the facts the plan selected), then the verifier
+audits it against the full ledgers: every factual sentence must trace to a
+claim/fact ID, plus deterministic checks for length (per email kind — outreach
+90–145 words, application 120–200), banned phrases, jargon, and opener
 repetition. Prints the draft + a PASS / REVISE / FAIL verdict.
 
 ## Usage (increment 7 — sending, with the resume attached)
@@ -96,6 +99,7 @@ cd backend
 python -m scripts.gmail_auth              # browser consent; the account you pick is the sender
 python -m scripts.gmail_auth --status     # report only
 
+python -m scripts.send_email 12 --draft   # save to Gmail Drafts — transmits nothing (safe default)
 python -m scripts.send_email 12           # show the full envelope, then ask before sending
 python -m scripts.send_email 12 --dry-run # render the MIME, transmit nothing
 ```
@@ -103,7 +107,9 @@ python -m scripts.send_email 12 --dry-run # render the MIME, transmit nothing
 **Nothing sends without an explicit confirmation.** `send_email` prints the exact
 From / To / Reply-To / Subject / attachment and makes you type `send`; the HTTP
 route requires `confirm: true` and refuses otherwise. The scope requested is
-`gmail.send` only — the program cannot read your mailbox.
+`gmail.compose` (manage drafts + send) — the program still **cannot read your
+mailbox**. Saving to Gmail Drafts is the safe default: it transmits nothing and
+lets you do the final review and send inside Gmail.
 
 The envelope also blocks on the things you can't undo: no recipient, an empty
 body, a verifier **FAIL** verdict, or an email that already went out (each with
@@ -118,13 +124,15 @@ with `RESUME_PATH` in `.env`.
 - [x] Increment 1: skeleton, IR models, LLM adapter, resume analyzer + CLI
 - [x] Increment 2: company intelligence — priority scraper (httpx+trafilatura, Jina fallback) + facts ledger
 - [x] Increment 3: matcher (deterministic overlap + LLM rubric) + planner (one-angle EmailPlan)
-- [x] Increment 4: writer (closed-world) + verifier (grounding, style, length, repetition)
+- [x] Increment 4: writer (open-candidate / closed-company) + verifier (grounding, style, length, repetition)
 - [x] Increment 5: FastAPI routes + React/Vite frontend (profile editor, draft review, feedback loops)
 - [x] Increment 6: multimodal intake (URL / email / hiring poster) + eval harness
 - [x] Increment 7: Gmail sending with resume attachment (draft → confirm → send) +
       deterministic recruiter plain-language pass
+- [x] Post-7: Gmail live (`gmail.compose` — drafts + send), Save-to-Drafts, browser intake
+      (URL / email / poster upload → one-click draft/send), full UI redesign
 
-All 6 stages plus the UI are built and live-verified (real resume × sarvam.ai):
+All 8 stages (0–7) plus the UI are built and live-verified (real resume × sarvam.ai):
 resume→claims, company→facts, match→78/100 fit, plan→one angle, write→102-word
 grounded email, verify→PASS. Multi-key Gemini rotation is active.
 
@@ -147,7 +155,8 @@ cd backend && .venv\Scripts\python.exe -m uvicorn app.main:app --reload --port 8
 cd frontend && npm install && npm run dev     # http://localhost:5173
 ```
 
-Three tabs: **Profile** (review/correct the claims ledger), **Companies** (add &
-scrape, view facts ledger), **Runs & Drafts** (match + plan, write + verify, edit
-the draft, review the send envelope, send, mark replied). API docs at
-http://localhost:8100/docs.
+Views: **New Application** (paste a URL / email or drop a hiring-poster image →
+one-click Draft or Send), **Profile** (review/correct the claims ledger),
+**Companies** (add & scrape, view facts ledger), and **Runs & Drafts** (match +
+plan, write + verify, edit the draft, review the send envelope, send, mark
+replied). API docs at http://localhost:8100/docs.
