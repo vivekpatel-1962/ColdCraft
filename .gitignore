@@ -22,3 +22,6 @@ build/
 # OS / editor
 .DS_Store
 Thumbs.db
+
+# Personal / local-only (interview prep — not part of the project)
+interview-prep/
