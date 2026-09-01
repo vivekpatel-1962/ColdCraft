@@ -9,6 +9,11 @@ trafilatura
 lxml_html_clean
 pyyaml
 pillow
+# Persistence: MongoDB (Atlas). dnspython is required for mongodb+srv:// URIs.
+pymongo
+dnspython
+# Auth: verify Clerk session JWTs against Clerk's JWKS (RS256).
+pyjwt[crypto]
 # Sending (Gmail API). Only the OAuth dance is borrowed; the send itself is one
 # httpx POST, so google-api-python-client is deliberately not a dependency.
 google-auth

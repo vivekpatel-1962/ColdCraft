@@ -13,12 +13,17 @@ from pathlib import Path
 
 from app import config
 
-# Point at a throwaway DB before anything opens the real one.
-_TMP = Path(tempfile.mkdtemp(prefix="coldmail-send-test-"))
-config.DATABASE_PATH = _TMP / "test.db"
+_TMP = Path(tempfile.mkdtemp(prefix="coldcraft-send-test-"))
 config.RESUME_PATH = None
 
 from app.db import database  # noqa: E402
+
+# In-memory Mongo — no server needed, no shared state with the real DB.
+import mongomock  # noqa: E402
+
+database._client = mongomock.MongoClient()
+database._indexes_ready = False
+
 from app.models import CandidateProfile, Claim, ClaimStrength, ClaimType, ContactInfo  # noqa: E402
 from app.send import compose, gmail  # noqa: E402
 from app.send.compose import NotSendable  # noqa: E402
@@ -36,7 +41,7 @@ def _tripwire(*a, **kw):
 
 
 gmail.send_raw = _tripwire
-gmail.authorized_address = lambda: SENDER
+gmail.authorized_address = lambda *a, **k: SENDER
 
 
 def _profile() -> CandidateProfile:
