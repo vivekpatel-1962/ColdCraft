@@ -1,5 +1,7 @@
 # Secrets
 .env
+.env.local
+.env.*.local
 # Gmail OAuth: the client secret and (worse) the refresh token
 credentials.json
 .gmail_token.json

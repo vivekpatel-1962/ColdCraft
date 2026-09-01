@@ -5,6 +5,7 @@ source; the PDF is never re-parsed by later stages.
 """
 from pathlib import Path
 
+from app import config
 from app.db import database
 from app.llm.client import complete_json
 from app.models import CandidateProfile
@@ -46,9 +47,15 @@ def extract_text(path: Path) -> str:
     return body
 
 
-def analyze_resume(path: Path) -> tuple[int, CandidateProfile]:
-    """Returns (candidate_profile_id, profile). Marks previous profiles inactive."""
+def analyze_resume(
+    path: Path, *, user_id: str = config.DEV_USER_ID, extra_text: str = ""
+) -> tuple[int, CandidateProfile]:
+    """Returns (candidate_profile_id, profile) for `user_id`. Marks that user's
+    previous profiles inactive. `extra_text` is appended to the resume text before
+    analysis (used to fold in GitHub repos / a LinkedIn PDF — see Increment B)."""
     raw_text = extract_text(path)
+    if extra_text:
+        raw_text = f"{raw_text}\n\n{extra_text}"
     if len(raw_text.strip()) < 200:
         raise ValueError(
             f"Extracted only {len(raw_text.strip())} chars from {path.name} — "
@@ -70,5 +77,6 @@ def analyze_resume(path: Path) -> tuple[int, CandidateProfile]:
         profile_json=profile.model_dump_json(indent=2),
         # Remembered so the send stage can attach this exact file later.
         resume_path=str(path.resolve()),
+        user_id=user_id,
     )
     return profile_id, profile

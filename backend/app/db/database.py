@@ -1,164 +1,237 @@
-"""SQLite persistence. Profiles and stage outputs are stored as JSON columns —
-they're documents with Pydantic-enforced schemas; nothing inside them is
-queried relationally."""
-import sqlite3
-from contextlib import contextmanager
+"""MongoDB persistence.
+
+The pipeline's stage outputs are documents (Pydantic-validated JSON), so they map
+cleanly onto MongoDB. To keep the swap from SQLite low-risk, every stored document
+mirrors the old column layout: the big stage outputs stay serialized JSON strings
+under the same field names (`profile_json`, `plan_json`, ...), so callers that do
+`CandidateProfile.model_validate_json(row["profile_json"])` are unchanged. Getters
+return plain dicts whose integer `id` (from a `counters` collection that preserves
+the old autoincrement ids used in URLs and cross-references) stands in for `_id`.
+
+Multi-tenant model:
+- `candidate_profiles`, `runs`, `emails` carry a `user_id` (the Clerk user id).
+  One ACTIVE profile PER user; runs/emails are private to their owner.
+- `companies` + `company_profiles` are a SHARED cache keyed by domain — public
+  facts about a company, reused across users to save scrape/LLM quota. A
+  `user_companies` link table scopes what each user sees in their Companies list.
+- `gmail_tokens` holds one per-user Gmail OAuth token (keyed by user id).
+
+Function convention:
+- "which partition am I in?" params default to `config.DEV_USER_ID` (so the CLI
+  scripts operate as the local dev user).
+- fetch-by-id getters take `user_id=None` meaning "no ownership filter"; API
+  routes pass the real user id to enforce ownership (returns None if not owned).
+"""
+import logging
+
+from pymongo import ASCENDING, DESCENDING, MongoClient, ReturnDocument
+from pymongo.errors import DuplicateKeyError
 
 from app import config
 
-SCHEMA = """
-CREATE TABLE IF NOT EXISTS candidate_profiles (
-    id INTEGER PRIMARY KEY,
-    resume_filename TEXT NOT NULL,
-    raw_text TEXT NOT NULL,
-    profile_json TEXT NOT NULL,          -- CandidateProfile (claims ledger)
-    is_active INTEGER NOT NULL DEFAULT 1,
-    created_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
+log = logging.getLogger("coldcraft.db")
 
-CREATE TABLE IF NOT EXISTS companies (
-    id INTEGER PRIMARY KEY,
-    domain TEXT NOT NULL UNIQUE,
-    name TEXT,
-    created_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
-
-CREATE TABLE IF NOT EXISTS company_profiles (
-    id INTEGER PRIMARY KEY,
-    company_id INTEGER NOT NULL REFERENCES companies(id),
-    profile_json TEXT NOT NULL,          -- CompanyProfile (facts ledger)
-    profile_tier TEXT NOT NULL,          -- rich | thin | manual
-    page_manifest_json TEXT,             -- scraped URLs + status
-    scraped_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
-
-CREATE TABLE IF NOT EXISTS runs (
-    id INTEGER PRIMARY KEY,
-    candidate_profile_id INTEGER NOT NULL REFERENCES candidate_profiles(id),
-    company_profile_id INTEGER REFERENCES company_profiles(id),
-    job_posting_url TEXT,
-    overlaps_json TEXT,                  -- stage 3
-    plan_json TEXT,                      -- stage 4
-    draft_json TEXT,                     -- stage 5
-    verifier_json TEXT,                  -- stage 6
-    provider_log TEXT,                   -- which provider/model produced each stage
-    status TEXT NOT NULL DEFAULT 'started',
-    created_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
-
-CREATE TABLE IF NOT EXISTS emails (
-    id INTEGER PRIMARY KEY,
-    run_id INTEGER NOT NULL REFERENCES runs(id),
-    subject TEXT,
-    generated_body TEXT,                 -- pre-edit (edit diffs = future learning signal)
-    final_body TEXT,                     -- post-edit
-    opening_line TEXT,                   -- for the cross-email repetition check
-    status TEXT NOT NULL DEFAULT 'draft',
-    sent_at TEXT,
-    replied INTEGER,                     -- the outcome loop: NULL=unknown, 0/1
-    replied_at TEXT
-);
-"""
-
-# Columns added after the initial schema shipped. SQLite has no "ADD COLUMN IF NOT
-# EXISTS", so we diff against PRAGMA table_info — an existing coldmail.db (runs #1-8)
-# upgrades in place rather than being rebuilt.
-MIGRATIONS: dict[str, dict[str, str]] = {
-    "emails": {
-        "recipient": "TEXT",             # where it goes — was previously nowhere to store
-        "sent_message_id": "TEXT",       # Gmail message id, the send receipt
-        "sent_thread_id": "TEXT",
-        "attachment_filename": "TEXT",   # what actually rode along (usually the resume)
-    },
-    "runs": {
-        "recipient_email": "TEXT",       # resolved at intake; drives recipient_type
-    },
-    "candidate_profiles": {
-        "resume_path": "TEXT",           # the PDF to attach when sending
-    },
-}
+_client: MongoClient | None = None
+_indexes_ready = False
 
 
-def _migrate(conn) -> None:
-    for table, columns in MIGRATIONS.items():
-        existing = {r["name"] for r in conn.execute(f"PRAGMA table_info({table})")}
-        for name, decl in columns.items():
-            if name not in existing:
-                conn.execute(f"ALTER TABLE {table} ADD COLUMN {name} {decl}")
+def _db():
+    global _client
+    if _client is None:
+        _client = MongoClient(config.MONGODB_URI, tz_aware=False)
+    return _client[config.MONGODB_DB]
 
 
-@contextmanager
-def get_conn():
-    config.DATABASE_PATH.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(config.DATABASE_PATH)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON")
-    try:
-        yield conn
-        conn.commit()
-    finally:
-        conn.close()
+def _next_id(name: str) -> int:
+    """Atomic autoincrement, so ids stay small integers (as the old schema had)."""
+    doc = _db().counters.find_one_and_update(
+        {"_id": name},
+        {"$inc": {"seq": 1}},
+        upsert=True,
+        return_document=ReturnDocument.AFTER,
+    )
+    return int(doc["seq"])
+
+
+def _row(doc):
+    """Mongo doc → caller dict: expose `_id` as `id`, keep every other field.
+
+    Returns a dict, so `row["col"]`, `row.keys()`, and `dict(row)` all work exactly
+    as they did with `sqlite3.Row`."""
+    if doc is None:
+        return None
+    out = dict(doc)
+    out["id"] = out.pop("_id")
+    return out
+
+
+def _now() -> str:
+    """UTC timestamp mirroring SQLite's datetime('now') text format."""
+    from datetime import datetime, timezone
+
+    return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
 
 
 def init_db() -> None:
-    with get_conn() as conn:
-        conn.executescript(SCHEMA)
-        _migrate(conn)
+    """Ensure indexes once per process. Mongo is schemaless, so there is no table
+    creation or column migration — just the indexes that keep lookups fast and the
+    two natural uniqueness constraints (company domain, user↔company link)."""
+    global _indexes_ready
+    if _indexes_ready:
+        return
+    db = _db()
+    db.candidate_profiles.create_index([("user_id", ASCENDING), ("is_active", ASCENDING)])
+    db.companies.create_index([("domain", ASCENDING)], unique=True)
+    db.company_profiles.create_index([("company_id", ASCENDING)])
+    db.runs.create_index([("user_id", ASCENDING)])
+    db.emails.create_index([("run_id", ASCENDING)])
+    db.emails.create_index([("user_id", ASCENDING)])
+    db.user_companies.create_index(
+        [("user_id", ASCENDING), ("company_id", ASCENDING)], unique=True
+    )
+    _indexes_ready = True
+
+
+# ---------- candidate profiles (per user, one active) ----------
 
 
 def save_candidate_profile(
-    resume_filename: str, raw_text: str, profile_json: str, resume_path: str | None = None
+    resume_filename: str,
+    raw_text: str,
+    profile_json: str,
+    resume_path: str | None = None,
+    *,
+    user_id: str = config.DEV_USER_ID,
 ) -> int:
-    with get_conn() as conn:
-        conn.execute("UPDATE candidate_profiles SET is_active = 0")
-        cur = conn.execute(
-            "INSERT INTO candidate_profiles (resume_filename, raw_text, profile_json, resume_path) "
-            "VALUES (?, ?, ?, ?)",
-            (resume_filename, raw_text, profile_json, resume_path),
+    db = _db()
+    db.candidate_profiles.update_many({"user_id": user_id}, {"$set": {"is_active": 0}})
+    _id = _next_id("candidate_profiles")
+    db.candidate_profiles.insert_one(
+        {
+            "_id": _id,
+            "user_id": user_id,
+            "resume_filename": resume_filename,
+            "raw_text": raw_text,
+            "profile_json": profile_json,
+            "resume_path": resume_path,
+            "is_active": 1,
+            "created_at": _now(),
+        }
+    )
+    return _id
+
+
+def get_active_candidate_profile(*, user_id: str = config.DEV_USER_ID):
+    return _row(
+        _db().candidate_profiles.find_one(
+            {"user_id": user_id, "is_active": 1}, sort=[("_id", DESCENDING)]
         )
-        return cur.lastrowid
+    )
 
 
-def get_active_candidate_profile() -> sqlite3.Row | None:
-    with get_conn() as conn:
-        return conn.execute(
-            "SELECT * FROM candidate_profiles WHERE is_active = 1 ORDER BY id DESC LIMIT 1"
-        ).fetchone()
+def get_candidate_profile_by_id(profile_id: int, *, user_id: str | None = None):
+    q = {"_id": profile_id}
+    if user_id is not None:
+        q["user_id"] = user_id
+    return _row(_db().candidate_profiles.find_one(q))
+
+
+def update_candidate_profile(profile_id: int, profile_json: str) -> None:
+    """Human review: correct the claims ledger in place."""
+    _db().candidate_profiles.update_one(
+        {"_id": profile_id}, {"$set": {"profile_json": profile_json}}
+    )
+
+
+# ---------- companies (shared cache) + per-user link ----------
 
 
 def upsert_company(domain: str, name: str | None) -> int:
     """Insert the company if new, else keep it; returns its id. Name is filled in
     on first sight and never blanked by a later scrape that lacked one."""
-    with get_conn() as conn:
-        conn.execute(
-            "INSERT INTO companies (domain, name) VALUES (?, ?) "
-            "ON CONFLICT(domain) DO UPDATE SET name = COALESCE(excluded.name, companies.name)",
-            (domain, name),
+    db = _db()
+    existing = db.companies.find_one({"domain": domain})
+    if existing:
+        if name and not existing.get("name"):
+            db.companies.update_one({"_id": existing["_id"]}, {"$set": {"name": name}})
+        return existing["_id"]
+    _id = _next_id("companies")
+    try:
+        db.companies.insert_one(
+            {"_id": _id, "domain": domain, "name": name, "created_at": _now()}
         )
-        row = conn.execute("SELECT id FROM companies WHERE domain = ?", (domain,)).fetchone()
-        return row["id"]
+    except DuplicateKeyError:  # concurrent insert won the race
+        return db.companies.find_one({"domain": domain})["_id"]
+    return _id
+
+
+def link_user_company(user_id: str, company_id: int) -> None:
+    """Record that this user has engaged this (shared) company, so it shows in
+    their Companies list without exposing other users' targets."""
+    _db().user_companies.update_one(
+        {"user_id": user_id, "company_id": company_id},
+        {"$setOnInsert": {"created_at": _now()}},
+        upsert=True,
+    )
 
 
 def save_company_profile(
     company_id: int, profile_json: str, profile_tier: str, page_manifest_json: str
 ) -> int:
-    with get_conn() as conn:
-        cur = conn.execute(
-            "INSERT INTO company_profiles "
-            "(company_id, profile_json, profile_tier, page_manifest_json) VALUES (?, ?, ?, ?)",
-            (company_id, profile_json, profile_tier, page_manifest_json),
+    _id = _next_id("company_profiles")
+    _db().company_profiles.insert_one(
+        {
+            "_id": _id,
+            "company_id": company_id,
+            "profile_json": profile_json,
+            "profile_tier": profile_tier,
+            "page_manifest_json": page_manifest_json,
+            "scraped_at": _now(),
+        }
+    )
+    return _id
+
+
+def get_latest_company_profile(domain: str):
+    db = _db()
+    comp = db.companies.find_one({"domain": domain})
+    if not comp:
+        return None
+    return _row(
+        db.company_profiles.find_one({"company_id": comp["_id"]}, sort=[("_id", DESCENDING)])
+    )
+
+
+def get_company_profile_by_id(profile_id: int):
+    return _row(_db().company_profiles.find_one({"_id": profile_id}))
+
+
+def list_companies(*, user_id: str = config.DEV_USER_ID) -> list[dict]:
+    db = _db()
+    company_ids = [uc["company_id"] for uc in db.user_companies.find({"user_id": user_id})]
+    if not company_ids:
+        return []
+    out: list[dict] = []
+    for comp in db.companies.find({"_id": {"$in": company_ids}}):
+        cp = db.company_profiles.find_one(
+            {"company_id": comp["_id"]}, sort=[("_id", DESCENDING)]
         )
-        return cur.lastrowid
+        if not cp:
+            continue
+        out.append(
+            {
+                "domain": comp["domain"],
+                "name": comp.get("name"),
+                "profile_tier": cp["profile_tier"],
+                "scraped_at": cp["scraped_at"],
+                "profile_id": cp["_id"],
+            }
+        )
+    out.sort(key=lambda r: r["scraped_at"] or "", reverse=True)
+    return out
 
 
-def get_latest_company_profile(domain: str) -> sqlite3.Row | None:
-    with get_conn() as conn:
-        return conn.execute(
-            "SELECT cp.* FROM company_profiles cp "
-            "JOIN companies c ON c.id = cp.company_id "
-            "WHERE c.domain = ? ORDER BY cp.id DESC LIMIT 1",
-            (domain,),
-        ).fetchone()
+# ---------- runs ----------
 
 
 def create_run(
@@ -166,57 +239,65 @@ def create_run(
     company_profile_id: int,
     job_posting_url: str | None = None,
     recipient_email: str | None = None,
+    *,
+    user_id: str = config.DEV_USER_ID,
 ) -> int:
-    with get_conn() as conn:
-        cur = conn.execute(
-            "INSERT INTO runs (candidate_profile_id, company_profile_id, job_posting_url, "
-            "recipient_email) VALUES (?, ?, ?, ?)",
-            (candidate_profile_id, company_profile_id, job_posting_url, recipient_email),
-        )
-        return cur.lastrowid
+    _id = _next_id("runs")
+    _db().runs.insert_one(
+        {
+            "_id": _id,
+            "user_id": user_id,
+            "candidate_profile_id": candidate_profile_id,
+            "company_profile_id": company_profile_id,
+            "job_posting_url": job_posting_url,
+            "recipient_email": recipient_email,
+            "overlaps_json": None,
+            "plan_json": None,
+            "draft_json": None,
+            "verifier_json": None,
+            "provider_log": None,
+            "status": "started",
+            "created_at": _now(),
+        }
+    )
+    return _id
 
 
 def save_overlaps(run_id: int, overlaps_json: str) -> None:
-    with get_conn() as conn:
-        conn.execute(
-            "UPDATE runs SET overlaps_json = ?, status = 'matched' WHERE id = ?",
-            (overlaps_json, run_id),
-        )
+    _db().runs.update_one(
+        {"_id": run_id}, {"$set": {"overlaps_json": overlaps_json, "status": "matched"}}
+    )
 
 
 def save_plan(run_id: int, plan_json: str) -> None:
-    with get_conn() as conn:
-        conn.execute(
-            "UPDATE runs SET plan_json = ?, status = 'planned' WHERE id = ?",
-            (plan_json, run_id),
+    _db().runs.update_one(
+        {"_id": run_id}, {"$set": {"plan_json": plan_json, "status": "planned"}}
+    )
+
+
+def save_verifier(run_id: int, verifier_json: str) -> None:
+    _db().runs.update_one(
+        {"_id": run_id}, {"$set": {"verifier_json": verifier_json, "status": "verified"}}
+    )
+
+
+def get_latest_planned_run(domain: str, *, user_id: str = config.DEV_USER_ID):
+    """Most recent run (for this user) against a company domain that has a plan."""
+    db = _db()
+    comp = db.companies.find_one({"domain": domain})
+    if not comp:
+        return None
+    cp_ids = [cp["_id"] for cp in db.company_profiles.find({"company_id": comp["_id"]})]
+    return _row(
+        db.runs.find_one(
+            {
+                "user_id": user_id,
+                "company_profile_id": {"$in": cp_ids},
+                "plan_json": {"$ne": None},
+            },
+            sort=[("_id", DESCENDING)],
         )
-
-
-def get_candidate_profile_by_id(profile_id: int) -> sqlite3.Row | None:
-    with get_conn() as conn:
-        return conn.execute(
-            "SELECT * FROM candidate_profiles WHERE id = ?", (profile_id,)
-        ).fetchone()
-
-
-def get_company_profile_by_id(profile_id: int) -> sqlite3.Row | None:
-    with get_conn() as conn:
-        return conn.execute(
-            "SELECT * FROM company_profiles WHERE id = ?", (profile_id,)
-        ).fetchone()
-
-
-def get_latest_planned_run(domain: str) -> sqlite3.Row | None:
-    """Most recent run for a company domain that has a saved plan."""
-    with get_conn() as conn:
-        return conn.execute(
-            "SELECT r.* FROM runs r "
-            "JOIN company_profiles cp ON cp.id = r.company_profile_id "
-            "JOIN companies c ON c.id = cp.company_id "
-            "WHERE c.domain = ? AND r.plan_json IS NOT NULL "
-            "ORDER BY r.id DESC LIMIT 1",
-            (domain,),
-        ).fetchone()
+    )
 
 
 def save_draft(
@@ -227,110 +308,100 @@ def save_draft(
     opening_line: str,
     recipient: str | None = None,
 ) -> int:
-    """Store the writer's draft on the run and as an emails row (generated_body).
+    """Store the writer's draft on the run and as an emails row. The email inherits
+    the run's owner and recipient so it can be sent later."""
+    db = _db()
+    run = db.runs.find_one({"_id": run_id})
+    db.runs.update_one({"_id": run_id}, {"$set": {"draft_json": draft_json, "status": "drafted"}})
+    if recipient is None:
+        recipient = run.get("recipient_email") if run else None
+    owner = run.get("user_id", config.DEV_USER_ID) if run else config.DEV_USER_ID
+    _id = _next_id("emails")
+    db.emails.insert_one(
+        {
+            "_id": _id,
+            "run_id": run_id,
+            "user_id": owner,
+            "subject": subject,
+            "generated_body": body,
+            "final_body": None,
+            "opening_line": opening_line,
+            "recipient": recipient,
+            "status": "draft",
+            "sent_at": None,
+            "replied": None,
+            "replied_at": None,
+            "sent_message_id": None,
+            "sent_thread_id": None,
+            "attachment_filename": None,
+        }
+    )
+    return _id
 
-    The recipient defaults to the one resolved at intake and stored on the run —
-    a draft that doesn't know where it's going can't be sent later."""
-    with get_conn() as conn:
-        conn.execute(
-            "UPDATE runs SET draft_json = ?, status = 'drafted' WHERE id = ?",
-            (draft_json, run_id),
+
+def list_runs(limit: int = 50, *, user_id: str = config.DEV_USER_ID) -> list[dict]:
+    db = _db()
+    out: list[dict] = []
+    for r in db.runs.find({"user_id": user_id}, sort=[("_id", DESCENDING)], limit=limit):
+        cp = db.company_profiles.find_one({"_id": r["company_profile_id"]})
+        comp = db.companies.find_one({"_id": cp["company_id"]}) if cp else None
+        email = db.emails.find_one({"run_id": r["_id"]}, sort=[("_id", DESCENDING)])
+        out.append(
+            {
+                "id": r["_id"],
+                "status": r["status"],
+                "created_at": r["created_at"],
+                "job_posting_url": r.get("job_posting_url"),
+                "recipient_email": r.get("recipient_email"),
+                "domain": comp["domain"] if comp else None,
+                "company_name": comp.get("name") if comp else None,
+                "email_id": email["_id"] if email else None,
+                "subject": email.get("subject") if email else None,
+                "replied": email.get("replied") if email else None,
+                "email_status": email.get("status") if email else None,
+                "recipient": email.get("recipient") if email else None,
+                "sent_at": email.get("sent_at") if email else None,
+            }
         )
-        if recipient is None:
-            row = conn.execute("SELECT recipient_email FROM runs WHERE id = ?", (run_id,)).fetchone()
-            recipient = row["recipient_email"] if row else None
-        cur = conn.execute(
-            "INSERT INTO emails (run_id, subject, generated_body, opening_line, recipient, status) "
-            "VALUES (?, ?, ?, ?, ?, 'draft')",
-            (run_id, subject, body, opening_line, recipient),
-        )
-        return cur.lastrowid
+    return out
 
 
-def save_verifier(run_id: int, verifier_json: str) -> None:
-    with get_conn() as conn:
-        conn.execute(
-            "UPDATE runs SET verifier_json = ?, status = 'verified' WHERE id = ?",
-            (verifier_json, run_id),
-        )
+def get_run(run_id: int, *, user_id: str | None = None):
+    q = {"_id": run_id}
+    if user_id is not None:
+        q["user_id"] = user_id
+    return _row(_db().runs.find_one(q))
 
 
-def update_candidate_profile(profile_id: int, profile_json: str) -> None:
-    """Human review: correct the claims ledger in place (not a new row — the
-    reviewed profile replaces the extracted one as the source of truth)."""
-    with get_conn() as conn:
-        conn.execute(
-            "UPDATE candidate_profiles SET profile_json = ? WHERE id = ?",
-            (profile_json, profile_id),
-        )
+# ---------- emails ----------
 
 
-def list_companies() -> list[sqlite3.Row]:
-    with get_conn() as conn:
-        return conn.execute(
-            "SELECT c.domain, c.name, cp.profile_tier, cp.scraped_at, cp.id AS profile_id "
-            "FROM companies c "
-            "JOIN company_profiles cp ON cp.id = ("
-            "  SELECT id FROM company_profiles WHERE company_id = c.id ORDER BY id DESC LIMIT 1) "
-            "ORDER BY cp.scraped_at DESC"
-        ).fetchall()
+def get_email_for_run(run_id: int):
+    return _row(_db().emails.find_one({"run_id": run_id}, sort=[("_id", DESCENDING)]))
 
 
-def list_runs(limit: int = 50) -> list[sqlite3.Row]:
-    with get_conn() as conn:
-        return conn.execute(
-            "SELECT r.id, r.status, r.created_at, r.job_posting_url, r.recipient_email, "
-            "       c.domain, c.name AS company_name, e.id AS email_id, e.subject, e.replied, "
-            "       e.status AS email_status, e.recipient, e.sent_at "
-            "FROM runs r "
-            "JOIN company_profiles cp ON cp.id = r.company_profile_id "
-            "JOIN companies c ON c.id = cp.company_id "
-            "LEFT JOIN emails e ON e.id = ("
-            "  SELECT id FROM emails WHERE run_id = r.id ORDER BY id DESC LIMIT 1) "
-            "ORDER BY r.id DESC LIMIT ?",
-            (limit,),
-        ).fetchall()
-
-
-def get_run(run_id: int) -> sqlite3.Row | None:
-    with get_conn() as conn:
-        return conn.execute("SELECT * FROM runs WHERE id = ?", (run_id,)).fetchone()
-
-
-def get_email_for_run(run_id: int) -> sqlite3.Row | None:
-    with get_conn() as conn:
-        return conn.execute(
-            "SELECT * FROM emails WHERE run_id = ? ORDER BY id DESC LIMIT 1", (run_id,)
-        ).fetchone()
-
-
-def get_email(email_id: int) -> sqlite3.Row | None:
-    with get_conn() as conn:
-        return conn.execute("SELECT * FROM emails WHERE id = ?", (email_id,)).fetchone()
+def get_email(email_id: int, *, user_id: str | None = None):
+    q = {"_id": email_id}
+    if user_id is not None:
+        q["user_id"] = user_id
+    return _row(_db().emails.find_one(q))
 
 
 def update_email(email_id: int, final_body: str | None = None, status: str | None = None) -> None:
-    """final_body is the edit-learning signal: the diff vs generated_body is what
-    the user actually changed."""
-    sets, params = [], []
+    sets: dict = {}
     if final_body is not None:
-        sets.append("final_body = ?")
-        params.append(final_body)
+        sets["final_body"] = final_body
     if status is not None:
-        sets.append("status = ?")
-        params.append(status)
+        sets["status"] = status
         if status == "sent":
-            sets.append("sent_at = datetime('now')")
+            sets["sent_at"] = _now()
     if not sets:
         return
-    params.append(email_id)
-    with get_conn() as conn:
-        conn.execute(f"UPDATE emails SET {', '.join(sets)} WHERE id = ?", params)
+    _db().emails.update_one({"_id": email_id}, {"$set": sets})
 
 
 def set_email_recipient(email_id: int, recipient: str) -> None:
-    with get_conn() as conn:
-        conn.execute("UPDATE emails SET recipient = ? WHERE id = ?", (recipient, email_id))
+    _db().emails.update_one({"_id": email_id}, {"$set": {"recipient": recipient}})
 
 
 def mark_email_sent(
@@ -342,40 +413,62 @@ def mark_email_sent(
     thread_id: str | None,
     attachment_filename: str | None,
 ) -> None:
-    """The send receipt. `final_body` is set to exactly what went out, so the
-    edit-learning diff (generated vs final) reflects the real sent text."""
-    with get_conn() as conn:
-        conn.execute(
-            "UPDATE emails SET status = 'sent', sent_at = datetime('now'), recipient = ?, "
-            "subject = ?, final_body = ?, sent_message_id = ?, sent_thread_id = ?, "
-            "attachment_filename = ? WHERE id = ?",
-            (recipient, subject, body, message_id, thread_id, attachment_filename, email_id),
-        )
+    """The send receipt. `final_body` is set to exactly what went out."""
+    _db().emails.update_one(
+        {"_id": email_id},
+        {
+            "$set": {
+                "status": "sent",
+                "sent_at": _now(),
+                "recipient": recipient,
+                "subject": subject,
+                "final_body": body,
+                "sent_message_id": message_id,
+                "sent_thread_id": thread_id,
+                "attachment_filename": attachment_filename,
+            }
+        },
+    )
 
 
-def get_run_for_email(email_id: int) -> sqlite3.Row | None:
-    with get_conn() as conn:
-        return conn.execute(
-            "SELECT r.* FROM runs r JOIN emails e ON e.run_id = r.id WHERE e.id = ?",
-            (email_id,),
-        ).fetchone()
+def get_run_for_email(email_id: int):
+    email = _db().emails.find_one({"_id": email_id})
+    if not email:
+        return None
+    return _row(_db().runs.find_one({"_id": email["run_id"]}))
 
 
 def set_email_replied(email_id: int, replied: bool) -> None:
     """The outcome loop."""
-    with get_conn() as conn:
-        conn.execute(
-            "UPDATE emails SET replied = ?, replied_at = datetime('now') WHERE id = ?",
-            (1 if replied else 0, email_id),
-        )
+    _db().emails.update_one(
+        {"_id": email_id}, {"$set": {"replied": 1 if replied else 0, "replied_at": _now()}}
+    )
 
 
-def get_recent_opening_lines(limit: int = 50) -> list[str]:
-    """Past email openers, for the verifier's cross-email repetition check."""
-    with get_conn() as conn:
-        rows = conn.execute(
-            "SELECT opening_line FROM emails WHERE opening_line IS NOT NULL "
-            "ORDER BY id DESC LIMIT ?",
-            (limit,),
-        ).fetchall()
-        return [r["opening_line"] for r in rows]
+def get_recent_opening_lines(limit: int = 50, *, user_id: str = config.DEV_USER_ID) -> list[str]:
+    """Past email openers for THIS user, for the verifier's repetition check."""
+    cur = _db().emails.find(
+        {"user_id": user_id, "opening_line": {"$ne": None}},
+        sort=[("_id", DESCENDING)],
+        limit=limit,
+    )
+    return [e["opening_line"] for e in cur]
+
+
+# ---------- per-user Gmail OAuth tokens ----------
+
+
+def save_gmail_token(user_id: str, token_json: str, address: str | None) -> None:
+    _db().gmail_tokens.update_one(
+        {"_id": user_id},
+        {"$set": {"token_json": token_json, "address": address, "updated_at": _now()}},
+        upsert=True,
+    )
+
+
+def get_gmail_token(user_id: str):
+    return _row(_db().gmail_tokens.find_one({"_id": user_id}))
+
+
+def delete_gmail_token(user_id: str) -> None:
+    _db().gmail_tokens.delete_one({"_id": user_id})

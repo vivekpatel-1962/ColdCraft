@@ -280,6 +280,11 @@ function SendPanel({ email, run, edited, onRefresh, autoAction, onAutoActionDone
       setMsg(`Sent to ${res.to} (gmail id ${res.message_id}).`); setEnv(null); onRefresh()
     } catch (e) { setErr(e.message) } finally { setBusy(null) }
   }
+  async function connectGmail() {
+    setBusy('connect'); setErr(null)
+    try { const { url } = await api.gmailConnect(); window.location.href = url }
+    catch (e) { setErr(e.message); setBusy(null) }
+  }
 
   return (
     <div style={{ marginTop: 18, borderTop: '1px solid var(--border)', paddingTop: 16 }}>
@@ -293,7 +298,12 @@ function SendPanel({ email, run, edited, onRefresh, autoAction, onAutoActionDone
       </div>
 
       {!authed && (
-        <p className="small text-2">Connect Gmail first: run <code>python -m scripts.gmail_auth</code> in <code>backend/</code>, then reload.</p>
+        <div className="banner warn" style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <span>Gmail isn’t connected for your account.</span>
+          <button className="btn primary" onClick={connectGmail} disabled={busy === 'connect'}>
+            {busy === 'connect' ? 'Connecting…' : 'Connect Gmail'}
+          </button>
+        </div>
       )}
       {edited && <p className="small muted">Unsaved edits — save them first, or the generated draft is what goes out.</p>}
 

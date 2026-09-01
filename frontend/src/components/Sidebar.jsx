@@ -12,9 +12,9 @@ export default function Sidebar({ tab, setTab, online, gmail }) {
     <aside className="sidebar">
       <div className="brand">
         <div className="logo" aria-hidden="true">
-          <span style={{ fontFamily: 'var(--mono)', fontWeight: 700, fontSize: 12, letterSpacing: '-.03em' }}>cm</span>
+          <span style={{ fontFamily: 'var(--mono)', fontWeight: 700, fontSize: 12, letterSpacing: '-.03em' }}>cc</span>
         </div>
-        <div><div className="name">coldmail</div><div className="sub">application engine</div></div>
+        <div><div className="name">ColdCraft</div><div className="sub">application engine</div></div>
       </div>
 
       <nav className="nav">

@@ -60,8 +60,10 @@ def _resume_attachment(profile_row) -> tuple[Optional[Attachment], list[str]]:
     return None, warnings
 
 
-def build_envelope(email_id: int, recipient_override: str | None = None) -> SendEnvelope:
-    """Exactly what would go out. Reads only — never sends."""
+def build_envelope(
+    email_id: int, *, user_id: str = config.DEV_USER_ID, recipient_override: str | None = None
+) -> SendEnvelope:
+    """Exactly what would go out for this user. Reads only — never sends."""
     database.init_db()
     row = database.get_email(email_id)
     if row is None:
@@ -79,10 +81,10 @@ def build_envelope(email_id: int, recipient_override: str | None = None) -> Send
         warnings.append("Sending your edited version (final_body), not the generated draft.")
 
     # --- who it comes from ---
-    from_address = gmail.authorized_address()
+    from_address = gmail.authorized_address(user_id)
     if from_address is None:
-        st = gmail.status()
-        blockers.append(st.detail or "Gmail is not authorized — run: python -m scripts.gmail_auth")
+        st = gmail.status(user_id)
+        blockers.append(st.detail or "Gmail is not connected — connect Gmail first.")
 
     # --- who it goes to ---
     if not to:
@@ -185,22 +187,24 @@ def render_mime(env: SendEnvelope) -> EmailMessage:
     return msg
 
 
-def create_gmail_draft(email_id: int, recipient_override: str | None = None) -> dict:
+def create_gmail_draft(
+    email_id: int, *, user_id: str = config.DEV_USER_ID, recipient_override: str | None = None
+) -> dict:
     """Save the email to the user's Gmail Drafts folder — it does NOT send. This is
     the safe path: the human opens the draft in Gmail, does the final review, and
     sends it themselves. A draft can be incomplete, so the only hard requirement is
-    Gmail authorization; the send-time blockers (verifier fail, already sent) are
+    Gmail being connected; the send-time blockers (verifier fail, already sent) are
     surfaced as warnings, not gates."""
-    env = build_envelope(email_id, recipient_override=recipient_override)
+    env = build_envelope(email_id, user_id=user_id, recipient_override=recipient_override)
     if env.from_address is None:
         raise NotSendable(
-            next((b for b in env.blockers if "authoriz" in b.lower()),
-                 "Gmail is not authorized — run: python -m scripts.gmail_auth")
+            next((b for b in env.blockers if "connect" in b.lower() or "authoriz" in b.lower()),
+                 "Gmail is not connected — connect Gmail first.")
         )
 
     msg = render_mime(env)
     raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
-    resp = gmail.create_draft_raw(raw)
+    resp = gmail.create_draft_raw(raw, user_id)
     draft_id = resp.get("id")
     log.info("Created Gmail draft %s for email #%s (to %s)", draft_id, email_id, env.to)
 
@@ -220,6 +224,8 @@ def create_gmail_draft(email_id: int, recipient_override: str | None = None) -> 
 
 def send(
     email_id: int,
+    *,
+    user_id: str = config.DEV_USER_ID,
     confirm: bool = False,
     recipient_override: str | None = None,
     override_verdict: bool = False,
@@ -228,7 +234,7 @@ def send(
 ) -> SendResult:
     """Transmit. Refuses without an explicit `confirm=True` from a human decision —
     there is no code path that reaches Gmail without one."""
-    env = build_envelope(email_id, recipient_override=recipient_override)
+    env = build_envelope(email_id, user_id=user_id, recipient_override=recipient_override)
 
     blockers = list(env.blockers)
     if override_verdict:
@@ -255,7 +261,7 @@ def send(
             dry_run=True,
         )
 
-    resp = gmail.send_raw(raw)
+    resp = gmail.send_raw(raw, user_id)
     log.info("Sent email #%s to %s (gmail id %s)", email_id, env.to, resp.get("id"))
 
     database.mark_email_sent(
