@@ -320,17 +320,21 @@ def create_run(req: CreateRunRequest, user_id: str = Depends(get_current_user)):
             "from using up everyone else's quota.",
         )
 
-    database.link_user_company(user_id, comp_row["company_id"])
-    profile = CandidateProfile.model_validate_json(cand_row["profile_json"])
-    company = CompanyProfile.model_validate_json(comp_row["profile_json"])
+    try:
+        database.link_user_company(user_id, comp_row["company_id"])
+        profile = CandidateProfile.model_validate_json(cand_row["profile_json"])
+        company = CompanyProfile.model_validate_json(comp_row["profile_json"])
 
-    run_id = database.create_run(
-        cand_row["id"], comp_row["id"], req.job_url, req.recipient_email, user_id=user_id
-    )
-    overlaps = _llm_guard(match, profile, company)
-    database.save_overlaps(run_id, overlaps.model_dump_json(indent=2))
-    email_plan = _llm_guard(make_plan, profile, company, overlaps, req.recipient_email)
-    database.save_plan(run_id, email_plan.model_dump_json(indent=2))
+        run_id = database.create_run(
+            cand_row["id"], comp_row["id"], req.job_url, req.recipient_email, user_id=user_id
+        )
+        overlaps = _llm_guard(match, profile, company)
+        database.save_overlaps(run_id, overlaps.model_dump_json(indent=2))
+        email_plan = _llm_guard(make_plan, profile, company, overlaps, req.recipient_email)
+        database.save_plan(run_id, email_plan.model_dump_json(indent=2))
+    except Exception:
+        database.refund_email_quota(user_id)
+        raise
 
     return {"run_id": run_id, "overlaps": overlaps.model_dump(), "plan": email_plan.model_dump()}
 
@@ -398,57 +402,61 @@ def generate(
             "from using up everyone else's quota.",
         )
 
-    # Persist the uploaded poster to a temp file the vision stage can read, then remove it.
-    poster_path = None
-    if poster is not None and poster.filename:
-        data = poster.file.read()
-        suffix = Path(poster.filename).suffix or ".png"
-        fd, poster_path = tempfile.mkstemp(suffix=suffix)
-        with os.fdopen(fd, "wb") as f:
-            f.write(data)
-
     try:
+        # Persist the uploaded poster to a temp file the vision stage can read, then remove it.
+        poster_path = None
+        if poster is not None and poster.filename:
+            data = poster.file.read()
+            suffix = Path(poster.filename).suffix or ".png"
+            fd, poster_path = tempfile.mkstemp(suffix=suffix)
+            with os.fdopen(fd, "wb") as f:
+                f.write(data)
+
         try:
-            res = _llm_guard(
-                intake_mod.resolve,
-                website=url or None,
-                email=email or None,
-                poster_path=poster_path,
-            )
-        except ValueError as e:
-            raise HTTPException(400, str(e)) from e
-    finally:
-        if poster_path:
-            os.unlink(poster_path)
+            try:
+                res = _llm_guard(
+                    intake_mod.resolve,
+                    website=url or None,
+                    email=email or None,
+                    poster_path=poster_path,
+                )
+            except ValueError as e:
+                raise HTTPException(400, str(e)) from e
+        finally:
+            if poster_path:
+                os.unlink(poster_path)
 
-    if not res.company_url:
-        raise HTTPException(422, "No company website could be resolved. " + " ".join(res.notes))
+        if not res.company_url:
+            raise HTTPException(422, "No company website could be resolved. " + " ".join(res.notes))
 
-    cp_id, company, scrape = _llm_guard(
-        analyze_company,
-        res.company_url,
-        None,
-        res.poster.as_context() if res.poster else None,
-    )
-    comp_row = database.get_latest_company_profile(domain_of(res.company_url))
-    if comp_row:
-        database.link_user_company(user_id, comp_row["company_id"])
+        cp_id, company, scrape = _llm_guard(
+            analyze_company,
+            res.company_url,
+            None,
+            res.poster.as_context() if res.poster else None,
+        )
+        comp_row = database.get_latest_company_profile(domain_of(res.company_url))
+        if comp_row:
+            database.link_user_company(user_id, comp_row["company_id"])
 
-    run_id = database.create_run(
-        cand_row["id"], comp_row["id"], None, res.recipient_email, user_id=user_id
-    )
-    overlaps = _llm_guard(match, profile, company)
-    database.save_overlaps(run_id, overlaps.model_dump_json(indent=2))
-    email_plan = _llm_guard(make_plan, profile, company, overlaps, res.recipient_email)
-    database.save_plan(run_id, email_plan.model_dump_json(indent=2))
+        run_id = database.create_run(
+            cand_row["id"], comp_row["id"], None, res.recipient_email, user_id=user_id
+        )
+        overlaps = _llm_guard(match, profile, company)
+        database.save_overlaps(run_id, overlaps.model_dump_json(indent=2))
+        email_plan = _llm_guard(make_plan, profile, company, overlaps, res.recipient_email)
+        database.save_plan(run_id, email_plan.model_dump_json(indent=2))
 
-    history = database.get_recent_opening_lines(user_id=user_id)
-    draft = _llm_guard(write, email_plan, profile, company)
-    report = _llm_guard(verify, draft, profile, company, email_plan, history)
-    email_id = database.save_draft(
-        run_id, draft.model_dump_json(indent=2), draft.subject, draft.body, draft.opening_line
-    )
-    database.save_verifier(run_id, report.model_dump_json(indent=2))
+        history = database.get_recent_opening_lines(user_id=user_id)
+        draft = _llm_guard(write, email_plan, profile, company)
+        report = _llm_guard(verify, draft, profile, company, email_plan, history)
+        email_id = database.save_draft(
+            run_id, draft.model_dump_json(indent=2), draft.subject, draft.body, draft.opening_line
+        )
+        database.save_verifier(run_id, report.model_dump_json(indent=2))
+    except Exception:
+        database.refund_email_quota(user_id)
+        raise
 
     return {
         "run_id": run_id,

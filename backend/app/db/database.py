@@ -519,3 +519,14 @@ def try_consume_email_quota(user_id: str, limit: int) -> dict:
         return {"allowed": True, "used": result["count"], "limit": limit,
                 "remaining": max(0, limit - result["count"]), "date": date_key}
     return {"allowed": False, "used": limit, "limit": limit, "remaining": 0, "date": date_key}
+
+
+def refund_email_quota(user_id: str) -> None:
+    """Give back a slot claimed by try_consume_email_quota when the pipeline failed
+    before producing a draft, so a mistyped domain or a transient scrape/LLM error
+    doesn't cost the user part of their daily cap for zero output."""
+    date_key = _quota_date_key()
+    _db().user_quota.update_one(
+        {"_id": f"{user_id}:{date_key}", "count": {"$gt": 0}},
+        {"$inc": {"count": -1}},
+    )

@@ -27,3 +27,6 @@ Thumbs.db
 
 # Personal / local-only (interview prep — not part of the project)
 interview-prep/
+
+# Claude Code project-local config (dev-server launch config, permission allowlist)
+.claude/

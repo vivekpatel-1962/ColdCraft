@@ -48,6 +48,8 @@ export default function Companies() {
           <tbody>
             {list.map((c, i) => (
               <motion.tr key={c.domain} className="row-click" onClick={() => view(c.domain)} layout
+                role="button" tabIndex={0}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); view(c.domain) } }}
                 initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.4, delay: 0.15 + Math.min(i * 0.06, 0.5), ease: [0.16, 0.84, 0.34, 1] }}
                 whileHover={{ x: 5 }}>
