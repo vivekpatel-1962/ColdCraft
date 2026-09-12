@@ -22,6 +22,28 @@ company URL ─► [2] Company Intel  ─► CompanyProfile   (facts F1..Fm with
 LLM: Gemini free tier (Flash for judgment stages, Flash-Lite for extraction),
 with a provider-adapter seam for fallback/upgrades. See `backend/app/llm/client.py`.
 
+## Screenshots
+
+<p align="center">
+  <img src="docs/screenshots/01-new-application.png" alt="New application — paste a URL, email, or hiring poster" width="820"/>
+  <br/><em>Paste a company URL, forward a recruiter email, or drop a hiring-poster screenshot — one click drafts the email, no copy-pasting between tabs.</em>
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/02-runs-list.png" alt="Runs & drafts — every application run in one place" width="820"/>
+  <br/><em>Every run is saved and reusable — reopen a draft, re-run against a saved company, or track what's been sent and what replied.</em>
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/03-run-detail.png" alt="Fit score, bridges, plan, and a verifier-passed draft" width="820"/>
+  <br/><em>A 76/100 fit score with claim×fact bridges you can audit, the one-angle plan behind the email, and a verifier <code>PASS</code> before it's ever sent.</em>
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/04-profile.png" alt="Claims ledger — the trusted source every email is grounded in" width="820"/>
+  <br/><em>The claims ledger is the single source of truth — every sentence the writer produces has to trace back to a claim here.</em>
+</p>
+
 ## Setup
 
 ```
@@ -32,6 +54,13 @@ pip install -r requirements.txt
 copy .env.example .env    # then paste your GEMINI_API_KEY
 ```
 
+Data now lives in **MongoDB**, not SQLite — `MONGODB_URI` defaults to
+`mongodb://localhost:27017` (a local `mongod`), or point it at a free
+[Atlas](https://cloud.mongodb.com) M0 cluster's connection string. Collections
+and indexes are created automatically on first use. `CLERK_ISSUER` and
+`GMAIL_CLIENT_ID` can stay empty for local dev — see `.env.example` for what
+each var does and when it's actually required.
+
 ## Usage (increment 1 — resume analysis)
 
 ```
@@ -39,7 +68,7 @@ cd backend
 python -m scripts.analyze_resume path\to\resume.pdf
 ```
 
-Extracts a CandidateProfile (claims ledger) and stores it in SQLite.
+Extracts a CandidateProfile (claims ledger) and stores it in MongoDB.
 Review/edit the profile before generating emails — the profile is the trusted
 source of truth; the PDF is never re-parsed.
 
@@ -149,14 +178,24 @@ python -m tests.test_send_gate         # every way the send path must refuse
 
 ```
 # terminal 1 — API
-cd backend && .venv\Scripts\python.exe -m uvicorn app.main:app --reload --port 8100
+cd backend && .venv\Scripts\python.exe -m uvicorn app.main:app --reload --port 8110
 
 # terminal 2 — UI
 cd frontend && npm install && npm run dev     # http://localhost:5173
 ```
 
+The backend port is **8110**, not the default 8100 — `frontend/.env.local`
+(`VITE_API_BASE`) and `backend/.env` (`BACKEND_URL`) are already set to 8110
+(8100 is reserved for a separate local project). If you start uvicorn on 8100
+instead, the frontend will call a port nothing is listening on and every
+request will fail. Multi-tenant setup (Clerk auth, MongoDB Atlas, per-user
+Gmail web OAuth) is documented var-by-var in `backend/.env.example` and
+`frontend/.env.example` — for pure local dev, leave `CLERK_ISSUER` /
+`VITE_CLERK_PUBLISHABLE_KEY` unset and the app runs as a single local dev user
+with no sign-in.
+
 Views: **New Application** (paste a URL / email or drop a hiring-poster image →
 one-click Draft or Send), **Profile** (review/correct the claims ledger),
 **Companies** (add & scrape, view facts ledger), and **Runs & Drafts** (match +
 plan, write + verify, edit the draft, review the send envelope, send, mark
-replied). API docs at http://localhost:8100/docs.
+replied). API docs at http://localhost:8110/docs.

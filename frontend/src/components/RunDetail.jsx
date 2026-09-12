@@ -1,7 +1,23 @@
 import { useEffect, useRef, useState } from 'react'
+import { motion, useMotionValue, useTransform, animate } from 'framer-motion'
 import { api } from '../lib/api'
 import EmailPreview from './EmailPreview'
 import { IconMail, IconSend } from './icons'
+
+// The fit score counts up from 0 instead of appearing as a static number —
+// it's the one number in the whole app that's meant to feel like a result.
+function CountUp({ value }) {
+  const mv = useMotionValue(0)
+  const rounded = useTransform(mv, (v) => Math.round(v))
+  const [display, setDisplay] = useState(0)
+  useEffect(() => {
+    const unsub = rounded.on('change', setDisplay)
+    const controls = animate(mv, value, { duration: 0.9, ease: [0.16, 0.84, 0.34, 1] })
+    return () => { unsub(); controls.stop() }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value])
+  return display
+}
 
 /* The full life of one run. Two layouts, same data:
    - "streamlined" (New Application): you just typed a URL and want the
@@ -35,7 +51,7 @@ export default function RunDetail({ run, busy, onDraft, onRefresh, autoAction, o
                   <circle className="track" cx="60" cy="60" r="52" />
                   <circle className="bar" cx="60" cy="60" r="52" />
                 </svg>
-                <span className="score">{o.fit_score}</span>
+                <span className="score"><CountUp value={o.fit_score} /></span>
               </div>
               <div><span className="of">fit score / 100</span><p className="small text-2" style={{ margin: '4px 0 0' }}>{o.fit_summary}</p></div>
             </div>
@@ -99,9 +115,10 @@ export default function RunDetail({ run, busy, onDraft, onRefresh, autoAction, o
       )}
 
       {!hasDraft && run.plan && (
-        <button className="btn primary lg" onClick={() => onDraft(run.id)} disabled={busy === 'draft'}>
+        <motion.button className="btn primary lg" onClick={() => onDraft(run.id)} disabled={busy === 'draft'}
+          whileTap={busy !== 'draft' ? { scale: 0.97 } : {}}>
           {busy === 'draft' ? <><span className="spinner" /> Writing &amp; verifying…</> : 'Write draft + verify'}
-        </button>
+        </motion.button>
       )}
     </div>
   )
@@ -143,7 +160,7 @@ function DraftPanel({ run, onRefresh, autoAction, onAutoActionDone, layout = 'st
       <textarea rows={11} value={body} onChange={(e) => setBody(e.target.value)} />
       <div className="row-between" style={{ marginTop: 8 }}>
         <div className="btn-row">
-          <button className="btn primary" onClick={save} disabled={!edited}>Save edits</button>
+          <motion.button className="btn primary" onClick={save} disabled={!edited} whileTap={edited ? { scale: 0.96 } : {}}>Save edits</motion.button>
           <button className="btn" onClick={() => outcome(true)}>Mark replied</button>
           <button className="btn ghost" onClick={() => outcome(false)}>No reply</button>
         </div>
@@ -195,7 +212,8 @@ function DraftPanel({ run, onRefresh, autoAction, onAutoActionDone, layout = 'st
   )
 
   return (
-    <div className="card reveal">
+    <motion.div className="card" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, ease: [0.16, 0.84, 0.34, 1] }}>
       <div className="card-head">
         <h3>Draft</h3>
         {v && <span className={`badge ${v.verdict === 'pass' ? 'ok' : v.verdict === 'fail' ? 'bad' : 'warn'}`}>{v.verdict}</span>}
@@ -224,7 +242,7 @@ function DraftPanel({ run, onRefresh, autoAction, onAutoActionDone, layout = 'st
           {sendPanel}
         </>
       )}
-    </div>
+    </motion.div>
   )
 }
 
@@ -314,12 +332,14 @@ function SendPanel({ email, run, edited, onRefresh, autoAction, onAutoActionDone
       </div>
 
       <div className="send-actions">
-        <button className="btn primary lg" onClick={saveDraft} disabled={!authed || busy === 'draft'}>
+        <motion.button className="btn primary lg" onClick={saveDraft} disabled={!authed || busy === 'draft'}
+          whileTap={authed && busy !== 'draft' ? { scale: 0.96 } : {}}>
           {busy === 'draft' ? <><span className="spinner" /> Saving…</> : <><IconMail /> Draft Email</>}
-        </button>
-        <button className="btn lg" onClick={review} disabled={!authed || busy === 'review'}>
+        </motion.button>
+        <motion.button className="btn lg" onClick={review} disabled={!authed || busy === 'review'}
+          whileTap={authed && busy !== 'review' ? { scale: 0.96 } : {}}>
           {busy === 'review' ? <><span className="spinner" /> Building…</> : <><IconSend /> Send Email</>}
-        </button>
+        </motion.button>
       </div>
       <p className="small muted" style={{ marginTop: 6 }}>
         <b>Draft</b> saves to your Gmail Drafts folder — nothing is transmitted. <b>Send</b> opens a
@@ -330,7 +350,8 @@ function SendPanel({ email, run, edited, onRefresh, autoAction, onAutoActionDone
       {msg && <div className="banner ok">{msg}</div>}
 
       {env && (
-        <div className="card pad-sm" style={{ marginTop: 12, borderColor: 'var(--accent)' }}>
+        <motion.div className="card pad-sm" style={{ marginTop: 12, borderColor: 'var(--accent)' }}
+          initial={{ opacity: 0, y: 10, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ duration: 0.25 }}>
           <p className="small"><b>From:</b> {env.from_address || <span className="bad">not connected</span>}</p>
           <p className="small"><b>To:</b> {env.to || <span className="bad">none</span>}</p>
           {env.reply_to && <p className="small"><b>Reply-To:</b> {env.reply_to}</p>}
@@ -338,10 +359,11 @@ function SendPanel({ email, run, edited, onRefresh, autoAction, onAutoActionDone
           <p className="small"><b>Attachment:</b> {env.attachment ? `${env.attachment.filename} (${Math.round(env.attachment.size_bytes / 1024)} KB)` : <span className="muted">none</span>}</p>
           {env.warnings.map((w, i) => <p key={i} className="small warn" style={{ color: 'var(--warn)' }}>! {w}</p>)}
           {env.blockers.map((b, i) => <p key={i} className="small bad">✗ {b}</p>)}
-          <button className="btn primary" style={{ marginTop: 10 }} onClick={send} disabled={busy === 'send'}>
+          <motion.button className="btn primary" style={{ marginTop: 10 }} onClick={send} disabled={busy === 'send'}
+            whileTap={busy !== 'send' ? { scale: 0.96 } : {}}>
             {busy === 'send' ? <><span className="spinner" /> Sending…</> : `Send to ${env.to || '—'}`}
-          </button>
-        </div>
+          </motion.button>
+        </motion.div>
       )}
     </div>
   )

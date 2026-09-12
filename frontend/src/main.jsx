@@ -14,7 +14,31 @@ const root = ReactDOM.createRoot(document.getElementById('root'))
 root.render(
   <React.StrictMode>
     {CLERK_KEY ? (
-      <ClerkProvider publishableKey={CLERK_KEY} afterSignOutUrl="/">
+      <ClerkProvider
+        publishableKey={CLERK_KEY}
+        afterSignOutUrl="/"
+        appearance={{
+          variables: {
+            colorPrimary: 'var(--brand-500)',
+            colorBackground: 'var(--surface)',
+            colorText: 'var(--text)',
+            colorTextSecondary: 'var(--text-2)',
+            colorInputBackground: 'var(--bg)',
+            colorInputText: 'var(--text)',
+            colorNeutral: 'var(--text)',
+            borderRadius: 'var(--r-md)',
+            fontFamily: 'var(--font)',
+          },
+          elements: {
+            modalBackdrop: {
+              backdropFilter: 'blur(8px)',
+              backgroundColor: 'color-mix(in oklch, var(--bg) 72%, transparent)',
+            },
+            card: { boxShadow: 'var(--shadow-lg)', border: '1px solid var(--border)' },
+            footer: { background: 'none' },
+          },
+        }}
+      >
         <App />
       </ClerkProvider>
     ) : (

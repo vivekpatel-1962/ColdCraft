@@ -96,6 +96,14 @@ def _llm_guard(fn, *args, **kwargs):
 # ---------- candidate profile ----------
 
 
+@router.get("/quota")
+def get_quota(user_id: str = Depends(get_current_user)):
+    """Today's email-generation quota usage, so the UI can show/disable before a
+    Draft/Send click burns a request that would just 429 anyway."""
+    database.init_db()
+    return database.get_email_quota(user_id, config.DAILY_EMAIL_LIMIT_PER_USER)
+
+
 @router.get("/profile")
 def get_profile(user_id: str = Depends(get_current_user)):
     database.init_db()
@@ -139,7 +147,7 @@ def _user_dir(user_id: str) -> Path:
 
 
 @router.post("/profile/resume")
-async def upload_resume(
+def upload_resume(
     resume: UploadFile = File(...),
     github_url: str | None = Form(None),
     linkedin_url: str | None = Form(None),
@@ -157,7 +165,7 @@ async def upload_resume(
         raise HTTPException(400, "Resume must be a .pdf, .txt or .md file.")
 
     dest = _user_dir(user_id) / (re.sub(r"[^A-Za-z0-9._-]", "_", Path(resume.filename).name) or f"resume{suffix}")
-    dest.write_bytes(await resume.read())
+    dest.write_bytes(resume.file.read())
 
     # --- optional enrichment folded into the analyzer's input ---
     extra_sections: list[str] = []
@@ -173,7 +181,7 @@ async def upload_resume(
         li_suffix = Path(linkedin_pdf.filename).suffix.lower() or ".pdf"
         fd, li_tmp = tempfile.mkstemp(suffix=li_suffix)
         with os.fdopen(fd, "wb") as f:
-            f.write(await linkedin_pdf.read())
+            f.write(linkedin_pdf.file.read())
         try:
             li_text = extract_text(Path(li_tmp))
             if li_text and len(li_text.strip()) >= 100:
@@ -303,17 +311,30 @@ def create_run(req: CreateRunRequest, user_id: str = Depends(get_current_user)):
     if comp_row is None:
         raise HTTPException(404, f"No company profile for '{domain}' — add the company first")
 
-    database.link_user_company(user_id, comp_row["company_id"])
-    profile = CandidateProfile.model_validate_json(cand_row["profile_json"])
-    company = CompanyProfile.model_validate_json(comp_row["profile_json"])
+    quota = database.try_consume_email_quota(user_id, config.DAILY_EMAIL_LIMIT_PER_USER)
+    if not quota["allowed"]:
+        raise HTTPException(
+            429,
+            f"Daily limit of {quota['limit']} emails reached — resets at midnight Pacific. "
+            "The Gemini free tier is shared across all users, so this keeps one account "
+            "from using up everyone else's quota.",
+        )
 
-    run_id = database.create_run(
-        cand_row["id"], comp_row["id"], req.job_url, req.recipient_email, user_id=user_id
-    )
-    overlaps = _llm_guard(match, profile, company)
-    database.save_overlaps(run_id, overlaps.model_dump_json(indent=2))
-    email_plan = _llm_guard(make_plan, profile, company, overlaps, req.recipient_email)
-    database.save_plan(run_id, email_plan.model_dump_json(indent=2))
+    try:
+        database.link_user_company(user_id, comp_row["company_id"])
+        profile = CandidateProfile.model_validate_json(cand_row["profile_json"])
+        company = CompanyProfile.model_validate_json(comp_row["profile_json"])
+
+        run_id = database.create_run(
+            cand_row["id"], comp_row["id"], req.job_url, req.recipient_email, user_id=user_id
+        )
+        overlaps = _llm_guard(match, profile, company)
+        database.save_overlaps(run_id, overlaps.model_dump_json(indent=2))
+        email_plan = _llm_guard(make_plan, profile, company, overlaps, req.recipient_email)
+        database.save_plan(run_id, email_plan.model_dump_json(indent=2))
+    except Exception:
+        database.refund_email_quota(user_id)
+        raise
 
     return {"run_id": run_id, "overlaps": overlaps.model_dump(), "plan": email_plan.model_dump()}
 
@@ -356,7 +377,7 @@ def create_draft(run_id: int, user_id: str = Depends(get_current_user)):
 
 
 @router.post("/generate")
-async def generate(
+def generate(
     url: str | None = Form(None),
     email: str | None = Form(None),
     poster: UploadFile | None = File(None),
@@ -372,57 +393,70 @@ async def generate(
         raise HTTPException(404, "No active candidate profile — upload your resume first.")
     profile = CandidateProfile.model_validate_json(cand_row["profile_json"])
 
-    # Persist the uploaded poster to a temp file the vision stage can read, then remove it.
-    poster_path = None
-    if poster is not None and poster.filename:
-        data = await poster.read()
-        suffix = Path(poster.filename).suffix or ".png"
-        fd, poster_path = tempfile.mkstemp(suffix=suffix)
-        with os.fdopen(fd, "wb") as f:
-            f.write(data)
+    quota = database.try_consume_email_quota(user_id, config.DAILY_EMAIL_LIMIT_PER_USER)
+    if not quota["allowed"]:
+        raise HTTPException(
+            429,
+            f"Daily limit of {quota['limit']} emails reached — resets at midnight Pacific. "
+            "The Gemini free tier is shared across all users, so this keeps one account "
+            "from using up everyone else's quota.",
+        )
 
     try:
+        # Persist the uploaded poster to a temp file the vision stage can read, then remove it.
+        poster_path = None
+        if poster is not None and poster.filename:
+            data = poster.file.read()
+            suffix = Path(poster.filename).suffix or ".png"
+            fd, poster_path = tempfile.mkstemp(suffix=suffix)
+            with os.fdopen(fd, "wb") as f:
+                f.write(data)
+
         try:
-            res = _llm_guard(
-                intake_mod.resolve,
-                website=url or None,
-                email=email or None,
-                poster_path=poster_path,
-            )
-        except ValueError as e:
-            raise HTTPException(400, str(e)) from e
-    finally:
-        if poster_path:
-            os.unlink(poster_path)
+            try:
+                res = _llm_guard(
+                    intake_mod.resolve,
+                    website=url or None,
+                    email=email or None,
+                    poster_path=poster_path,
+                )
+            except ValueError as e:
+                raise HTTPException(400, str(e)) from e
+        finally:
+            if poster_path:
+                os.unlink(poster_path)
 
-    if not res.company_url:
-        raise HTTPException(422, "No company website could be resolved. " + " ".join(res.notes))
+        if not res.company_url:
+            raise HTTPException(422, "No company website could be resolved. " + " ".join(res.notes))
 
-    cp_id, company, scrape = _llm_guard(
-        analyze_company,
-        res.company_url,
-        None,
-        res.poster.as_context() if res.poster else None,
-    )
-    comp_row = database.get_latest_company_profile(domain_of(res.company_url))
-    if comp_row:
-        database.link_user_company(user_id, comp_row["company_id"])
+        cp_id, company, scrape = _llm_guard(
+            analyze_company,
+            res.company_url,
+            None,
+            res.poster.as_context() if res.poster else None,
+        )
+        comp_row = database.get_latest_company_profile(domain_of(res.company_url))
+        if comp_row:
+            database.link_user_company(user_id, comp_row["company_id"])
 
-    run_id = database.create_run(
-        cand_row["id"], comp_row["id"], None, res.recipient_email, user_id=user_id
-    )
-    overlaps = _llm_guard(match, profile, company)
-    database.save_overlaps(run_id, overlaps.model_dump_json(indent=2))
-    email_plan = _llm_guard(make_plan, profile, company, overlaps, res.recipient_email)
-    database.save_plan(run_id, email_plan.model_dump_json(indent=2))
+        run_id = database.create_run(
+            cand_row["id"], comp_row["id"], None, res.recipient_email, user_id=user_id
+        )
+        overlaps = _llm_guard(match, profile, company)
+        database.save_overlaps(run_id, overlaps.model_dump_json(indent=2))
+        email_plan = _llm_guard(make_plan, profile, company, overlaps, res.recipient_email)
+        database.save_plan(run_id, email_plan.model_dump_json(indent=2))
 
-    history = database.get_recent_opening_lines(user_id=user_id)
-    draft = _llm_guard(write, email_plan, profile, company)
-    report = _llm_guard(verify, draft, profile, company, email_plan, history)
-    email_id = database.save_draft(
-        run_id, draft.model_dump_json(indent=2), draft.subject, draft.body, draft.opening_line
-    )
-    database.save_verifier(run_id, report.model_dump_json(indent=2))
+        history = database.get_recent_opening_lines(user_id=user_id)
+        draft = _llm_guard(write, email_plan, profile, company)
+        report = _llm_guard(verify, draft, profile, company, email_plan, history)
+        email_id = database.save_draft(
+            run_id, draft.model_dump_json(indent=2), draft.subject, draft.body, draft.opening_line
+        )
+        database.save_verifier(run_id, report.model_dump_json(indent=2))
+    except Exception:
+        database.refund_email_quota(user_id)
+        raise
 
     return {
         "run_id": run_id,

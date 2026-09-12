@@ -50,7 +50,7 @@ DEV_USER_ID = os.getenv("DEV_USER_ID", "local-dev")
 
 # ---- URLs / CORS ----
 # Public origin of THIS backend (used to build the Gmail OAuth redirect URI).
-BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8100").rstrip("/")
+BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8110").rstrip("/")
 # Frontend origin (users are redirected back here after connecting Gmail).
 APP_URL = os.getenv("APP_URL", "http://localhost:5173").rstrip("/")
 _cors = os.getenv("CORS_ORIGINS", "")
@@ -93,3 +93,10 @@ EXTRACTION_STAGES = {"company_summarizer", "verifier", "resume_analyzer", "poste
 # email/website) poisons everything downstream, so these get the stronger model.
 STRONG_EXTRACTION_STAGES = {"resume_analyzer", "poster_reader"}
 JUDGMENT_STAGES = {"matcher", "planner", "writer"}
+
+# ---- Per-user daily email-generation cap ----
+# Multi-tenant guard: the judgment model is a SHARED pool (20 req/day per Gemini
+# project; each email costs 3 judgment calls — matcher+planner+writer), so with no
+# cap one active user can exhaust the whole platform's daily budget. Resets at
+# midnight Pacific, same as the underlying Gemini quota (see db/database.py).
+DAILY_EMAIL_LIMIT_PER_USER = int(os.getenv("DAILY_EMAIL_LIMIT_PER_USER", "3"))

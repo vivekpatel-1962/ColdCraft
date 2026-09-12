@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { api } from '../lib/api'
 
 const STRENGTHS = ['quantified', 'concrete', 'vague']
@@ -61,10 +62,15 @@ export default function Profile({ gmail, onGmailChange }) {
             <p className="text-2">{profile.headline}</p>
             {profile.status && <p className="small muted">{profile.status}</p>}
           </div>
-          <div className="btn-row">
+          <div className="btn-row" style={{ alignItems: 'center' }}>
             <button className="btn ghost" onClick={() => setShowUpload(true)}>Update resume</button>
-            <button className="btn primary" onClick={save}>Save ledger</button>
-            {saved && <span className="ok-text small">saved ✓</span>}
+            <motion.button className="btn primary" onClick={save} whileTap={{ scale: 0.96 }}>Save ledger</motion.button>
+            <AnimatePresence>
+              {saved && (
+                <motion.span className="ok-text small" initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}>saved ✓</motion.span>
+              )}
+            </AnimatePresence>
           </div>
         </div>
         <div className="btn-row" style={{ marginTop: 12 }}>
@@ -87,7 +93,9 @@ export default function Profile({ gmail, onGmailChange }) {
       <h4>Claims ledger</h4>
       <div className="stack">
         {profile.claims.map((cl, i) => (
-          <div className="card pad-sm" key={cl.id}>
+          <motion.div className="card pad-sm" key={cl.id}
+            initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.25, delay: Math.min(i * 0.035, 0.35) }}>
             <div className="btn-row" style={{ marginBottom: 8 }}>
               <span className="id">{cl.id}</span>
               <span className="badge">{cl.type}</span>
@@ -101,7 +109,7 @@ export default function Profile({ gmail, onGmailChange }) {
             <input style={{ marginTop: 8 }} placeholder="outcome / achievement (add a number if you have one)"
               value={cl.achievement || ''} onChange={(e) => patch(i, 'achievement', e.target.value || null)} />
             {cl.link && <p className="small muted" style={{ marginTop: 6 }}>🔗 {cl.link}</p>}
-          </div>
+          </motion.div>
         ))}
       </div>
     </div>
@@ -165,9 +173,9 @@ function ResumeUpload({ existing, onDone, onCancel }) {
       {err && <div className="banner error" style={{ marginTop: 12 }}>{err}</div>}
 
       <div className="btn-row" style={{ marginTop: 16 }}>
-        <button className="btn primary lg" type="submit" disabled={busy}>
+        <motion.button className="btn primary lg" type="submit" disabled={busy} whileTap={{ scale: 0.96 }}>
           {busy ? <><span className="spinner" /> Analyzing…</> : existing ? 'Re-analyze resume' : 'Build my profile'}
-        </button>
+        </motion.button>
         {onCancel && <button className="btn ghost" type="button" onClick={onCancel} disabled={busy}>Cancel</button>}
       </div>
     </form>

@@ -472,3 +472,61 @@ def get_gmail_token(user_id: str):
 
 def delete_gmail_token(user_id: str) -> None:
     _db().gmail_tokens.delete_one({"_id": user_id})
+
+
+# ---------- per-user daily email-generation quota ----------
+# Gemini's free-tier daily quota resets at midnight Pacific (see llm/client.py), so
+# the quota day is keyed on Pacific time too — otherwise a user's cap would reset
+# hours away from when the underlying Gemini quota actually does.
+
+
+def _quota_date_key() -> str:
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    return datetime.now(ZoneInfo("America/Los_Angeles")).date().isoformat()
+
+
+def get_email_quota(user_id: str, limit: int) -> dict:
+    """Today's usage for this user, without consuming a slot."""
+    date_key = _quota_date_key()
+    doc = _db().user_quota.find_one({"_id": f"{user_id}:{date_key}"})
+    used = doc["count"] if doc else 0
+    return {"used": used, "limit": limit, "remaining": max(0, limit - used), "date": date_key}
+
+
+def try_consume_email_quota(user_id: str, limit: int) -> dict:
+    """Atomically claim one of today's email-generation slots for this user.
+
+    Returns {"allowed": bool, ...quota fields}. The increment only happens when
+    `allowed` is True — a denied call never mutates the count, so failed attempts
+    (e.g. a 404 upstream) don't cost the user a slot.
+    """
+    date_key = _quota_date_key()
+    doc_id = f"{user_id}:{date_key}"
+    coll = _db().user_quota
+    coll.update_one(
+        {"_id": doc_id},
+        {"$setOnInsert": {"user_id": user_id, "date": date_key, "count": 0}},
+        upsert=True,
+    )
+    result = coll.find_one_and_update(
+        {"_id": doc_id, "count": {"$lt": limit}},
+        {"$inc": {"count": 1}},
+        return_document=ReturnDocument.AFTER,
+    )
+    if result is not None:
+        return {"allowed": True, "used": result["count"], "limit": limit,
+                "remaining": max(0, limit - result["count"]), "date": date_key}
+    return {"allowed": False, "used": limit, "limit": limit, "remaining": 0, "date": date_key}
+
+
+def refund_email_quota(user_id: str) -> None:
+    """Give back a slot claimed by try_consume_email_quota when the pipeline failed
+    before producing a draft, so a mistyped domain or a transient scrape/LLM error
+    doesn't cost the user part of their daily cap for zero output."""
+    date_key = _quota_date_key()
+    _db().user_quota.update_one(
+        {"_id": f"{user_id}:{date_key}", "count": {"$gt": 0}},
+        {"$inc": {"count": -1}},
+    )
