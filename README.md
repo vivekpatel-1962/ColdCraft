@@ -22,6 +22,28 @@ company URL ─► [2] Company Intel  ─► CompanyProfile   (facts F1..Fm with
 LLM: Gemini free tier (Flash for judgment stages, Flash-Lite for extraction),
 with a provider-adapter seam for fallback/upgrades. See `backend/app/llm/client.py`.
 
+## Screenshots
+
+<p align="center">
+  <img src="docs/screenshots/01-new-application.png" alt="New application — paste a URL, email, or hiring poster" width="820"/>
+  <br/><em>Paste a company URL, forward a recruiter email, or drop a hiring-poster screenshot — one click drafts the email, no copy-pasting between tabs.</em>
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/02-runs-list.png" alt="Runs & drafts — every application run in one place" width="820"/>
+  <br/><em>Every run is saved and reusable — reopen a draft, re-run against a saved company, or track what's been sent and what replied.</em>
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/03-run-detail.png" alt="Fit score, bridges, plan, and a verifier-passed draft" width="820"/>
+  <br/><em>A 76/100 fit score with claim×fact bridges you can audit, the one-angle plan behind the email, and a verifier <code>PASS</code> before it's ever sent.</em>
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/04-profile.png" alt="Claims ledger — the trusted source every email is grounded in" width="820"/>
+  <br/><em>The claims ledger is the single source of truth — every sentence the writer produces has to trace back to a claim here.</em>
+</p>
+
 ## Setup
 
 ```
