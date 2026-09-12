@@ -1,0 +1,86 @@
+# Canonical concept -> aliases. Used by the matcher's deterministic pass to
+# normalize resume skills and company text to shared concepts before the LLM
+# ranks them. Not exhaustive — it only needs to catch common synonyms so real
+# overlaps aren't missed by surface wording. The LLM still sees the full text.
+
+llm:
+  - large language model
+  - language model
+  - llms
+  - gpt
+  - gemini
+  - claude
+  - openai
+  - foundational model
+  - foundation model
+vision:
+  - computer vision
+  - ocr
+  - image
+  - images
+  - document extraction
+  - document digitization
+  - handwritten
+  - meter photos
+  - vision-llm
+  - multimodal
+speech:
+  - asr
+  - speech recognition
+  - voice
+  - transcription
+  - text-to-speech
+  - tts
+fastapi:
+  - rest api
+  - api
+  - apis
+  - backend
+  - web service
+python:
+  - py
+react:
+  - frontend
+  - front-end
+  - ui
+  - next.js
+  - nextjs
+node:
+  - node.js
+  - nodejs
+  - express
+gcp:
+  - google cloud
+  - cloud run
+  - cloud
+inference:
+  - inference optimization
+  - model routing
+  - latency
+  - cost optimization
+mlops:
+  - ml ops
+  - deployment
+  - job queue
+  - job queues
+  - pm2
+  - workers
+  - pipeline
+  - automation
+database:
+  - mongodb
+  - mysql
+  - postgres
+  - postgresql
+  - firestore
+  - sql
+langchain:
+  - rag
+  - retrieval
+  - agents
+  - agent
+  - agentic
+recommendation:
+  - recommender
+  - recommendation system
+  - personalization

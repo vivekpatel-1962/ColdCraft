@@ -12,8 +12,9 @@ __pycache__/
 .venv/
 venv/
 
-# Data (local SQLite + uploaded resumes)
-data/
+# Data (local SQLite + uploaded resumes) — anchored to the project root so it
+# doesn't also swallow backend/app/data/ (real source files the pipeline needs).
+/data/
 *.db
 
 # Node (frontend, later)
