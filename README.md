@@ -54,6 +54,13 @@ pip install -r requirements.txt
 copy .env.example .env    # then paste your GEMINI_API_KEY
 ```
 
+Data now lives in **MongoDB**, not SQLite — `MONGODB_URI` defaults to
+`mongodb://localhost:27017` (a local `mongod`), or point it at a free
+[Atlas](https://cloud.mongodb.com) M0 cluster's connection string. Collections
+and indexes are created automatically on first use. `CLERK_ISSUER` and
+`GMAIL_CLIENT_ID` can stay empty for local dev — see `.env.example` for what
+each var does and when it's actually required.
+
 ## Usage (increment 1 — resume analysis)
 
 ```
@@ -61,7 +68,7 @@ cd backend
 python -m scripts.analyze_resume path\to\resume.pdf
 ```
 
-Extracts a CandidateProfile (claims ledger) and stores it in SQLite.
+Extracts a CandidateProfile (claims ledger) and stores it in MongoDB.
 Review/edit the profile before generating emails — the profile is the trusted
 source of truth; the PDF is never re-parsed.
 
@@ -182,12 +189,13 @@ The backend port is **8110**, not the default 8100 — `frontend/.env.local`
 (8100 is reserved for a separate local project). If you start uvicorn on 8100
 instead, the frontend will call a port nothing is listening on and every
 request will fail. Multi-tenant setup (Clerk auth, MongoDB Atlas, per-user
-Gmail OAuth) is documented in `DEPLOY.md` and `coldmail-knowledge-base.md` §11
-— for pure local dev, leave `CLERK_ISSUER`/`VITE_CLERK_PUBLISHABLE_KEY` unset
-and the app runs as a single local dev user with no sign-in.
+Gmail web OAuth) is documented var-by-var in `backend/.env.example` and
+`frontend/.env.example` — for pure local dev, leave `CLERK_ISSUER` /
+`VITE_CLERK_PUBLISHABLE_KEY` unset and the app runs as a single local dev user
+with no sign-in.
 
 Views: **New Application** (paste a URL / email or drop a hiring-poster image →
 one-click Draft or Send), **Profile** (review/correct the claims ledger),
 **Companies** (add & scrape, view facts ledger), and **Runs & Drafts** (match +
 plan, write + verify, edit the draft, review the send envelope, send, mark
-replied). API docs at http://localhost:8100/docs.
+replied). API docs at http://localhost:8110/docs.

@@ -50,7 +50,7 @@ DEV_USER_ID = os.getenv("DEV_USER_ID", "local-dev")
 
 # ---- URLs / CORS ----
 # Public origin of THIS backend (used to build the Gmail OAuth redirect URI).
-BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8100").rstrip("/")
+BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8110").rstrip("/")
 # Frontend origin (users are redirected back here after connecting Gmail).
 APP_URL = os.getenv("APP_URL", "http://localhost:5173").rstrip("/")
 _cors = os.getenv("CORS_ORIGINS", "")

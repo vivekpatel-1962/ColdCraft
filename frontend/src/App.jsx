@@ -101,7 +101,7 @@ function AppInner({ clerkEnabled }) {
         {online === false && (
           <div className="page"><div className="banner error">
             Backend not reachable. Start it:{' '}
-            <code>uvicorn app.main:app --reload --port 8100</code>
+            <code>uvicorn app.main:app --reload --port 8110</code>
           </div></div>
         )}
 

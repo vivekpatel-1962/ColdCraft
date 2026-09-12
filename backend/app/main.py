@@ -1,6 +1,6 @@
 """FastAPI app — the HTTP surface for the whole pipeline.
 
-Dev: uvicorn app.main:app --reload --port 8100
+Dev: uvicorn app.main:app --reload --port 8110
 Routes live in app/api/routes.py; see /docs for the interactive schema.
 
 Multi-tenant: every /api route resolves the caller via the Clerk session token

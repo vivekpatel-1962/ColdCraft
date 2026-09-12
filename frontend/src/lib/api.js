@@ -1,5 +1,5 @@
 // Backend origin — override per-deploy with VITE_API_BASE; defaults to local dev.
-const BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:8100'
+const BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:8110'
 
 // Clerk gives us a per-request session token via useAuth().getToken(). api.js is a
 // bare module (no React context), so App wires a getter in here once, and every
