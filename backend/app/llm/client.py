@@ -28,8 +28,11 @@ log = logging.getLogger("coldmail.llm")
 T = TypeVar("T", bound=BaseModel)
 
 # Upstream hiccups (model overloaded, gateway blips) — distinct from quota. These
-# are temporary by definition, so retry with backoff rather than rotating keys:
-# a 503 is model-side capacity, identical across every key.
+# are temporary by definition, so retry with backoff first. A 503 is NOT
+# necessarily identical across every key, though — Gemini's capacity allocation
+# is evidently per-key/project, so a key that's persistently 503ing may sit next
+# to one with spare capacity. _call_gemini rotates past a key that stays
+# unavailable through its retries, same as it does for quota exhaustion.
 TRANSIENT_CODES = {500, 502, 503, 504}
 # Gemini intermittently returns a spurious 400 INVALID_ARGUMENT under load — the
 # identical request succeeds moments later on the same key. Retry it too, but if it
@@ -107,8 +110,10 @@ def _call_gemini_with_key(
 def _call_gemini(stage: str, system: str, user: str, schema: type[T],
                  images: list[tuple[bytes, str]] | None = None) -> T:
     """Try the configured Gemini keys in rotation. Uses the last known-good key
-    first; on a per-key quota (429) it rotates to the next. Raises the quota error
-    only when EVERY key is exhausted, so complete_json() then applies stage policy."""
+    first; rotates to the next key on a per-key quota (429) or on a 503 that
+    persists through its own retries (capacity is per-key/project, so another
+    key may have room). Raises the last such error only when EVERY key has
+    failed, so complete_json() then applies stage policy."""
     from . import keyring
 
     keys = config.GEMINI_API_KEYS
@@ -120,7 +125,7 @@ def _call_gemini(stage: str, system: str, user: str, schema: type[T],
 
     order = keyring.rotation_order(len(keys))
     model = _gemini_model_for(stage)
-    last_quota_error: Exception | None = None
+    last_error: Exception | None = None
     counter: dict = {}
     rotations = 0
     started = time.monotonic()
@@ -141,6 +146,12 @@ def _call_gemini(stage: str, system: str, user: str, schema: type[T],
             log.info("stage=%s provider=gemini key=#%d model=%s ok (%.1fs)",
                      stage, i, model, time.monotonic() - started)
             return result
+        except ProviderUnavailable as e:
+            last_error = e
+            rotations += 1
+            log.warning("stage=%s gemini key #%d still unavailable after retries, "
+                        "rotating (%d/%d keys down)", stage, i, rotations, len(keys))
+            continue
         except Exception as e:
             if not _is_quota_error(e):
                 telemetry.record(telemetry.LLMCall(
@@ -150,22 +161,22 @@ def _call_gemini(stage: str, system: str, user: str, schema: type[T],
                     input_chars=len(system) + len(user),
                 ))
                 raise
-            last_quota_error = e
+            last_error = e
             rotations += 1
             keyring.mark_exhausted(i)  # don't re-probe this key for the rest of the run
             log.warning("stage=%s gemini key #%d quota-exhausted, rotating (%d/%d keys down)",
                         stage, i, keyring.exhausted_count(), len(keys))
             continue
 
-    # Every key is out of quota — re-raise so complete_json applies the stage policy.
-    assert last_quota_error is not None
+    # Every key is out of quota or unavailable — re-raise so complete_json applies policy.
+    assert last_error is not None
     telemetry.record(telemetry.LLMCall(
         stage=stage, provider="gemini", model=model, key_index=None,
         duration_s=round(time.monotonic() - started, 2), ok=False,
-        error="all keys quota-exhausted", quota_rotations=rotations,
+        error=f"all keys exhausted/unavailable: {last_error}"[:300], quota_rotations=rotations,
         transient_retries=counter.get("transient", 0), input_chars=len(system) + len(user),
     ))
-    raise last_quota_error
+    raise last_error
 
 
 def _call_fallback(stage: str, system: str, user: str, schema: type[T]) -> T:
