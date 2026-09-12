@@ -147,7 +147,7 @@ def _user_dir(user_id: str) -> Path:
 
 
 @router.post("/profile/resume")
-async def upload_resume(
+def upload_resume(
     resume: UploadFile = File(...),
     github_url: str | None = Form(None),
     linkedin_url: str | None = Form(None),
@@ -165,7 +165,7 @@ async def upload_resume(
         raise HTTPException(400, "Resume must be a .pdf, .txt or .md file.")
 
     dest = _user_dir(user_id) / (re.sub(r"[^A-Za-z0-9._-]", "_", Path(resume.filename).name) or f"resume{suffix}")
-    dest.write_bytes(await resume.read())
+    dest.write_bytes(resume.file.read())
 
     # --- optional enrichment folded into the analyzer's input ---
     extra_sections: list[str] = []
@@ -181,7 +181,7 @@ async def upload_resume(
         li_suffix = Path(linkedin_pdf.filename).suffix.lower() or ".pdf"
         fd, li_tmp = tempfile.mkstemp(suffix=li_suffix)
         with os.fdopen(fd, "wb") as f:
-            f.write(await linkedin_pdf.read())
+            f.write(linkedin_pdf.file.read())
         try:
             li_text = extract_text(Path(li_tmp))
             if li_text and len(li_text.strip()) >= 100:
@@ -373,7 +373,7 @@ def create_draft(run_id: int, user_id: str = Depends(get_current_user)):
 
 
 @router.post("/generate")
-async def generate(
+def generate(
     url: str | None = Form(None),
     email: str | None = Form(None),
     poster: UploadFile | None = File(None),
@@ -401,7 +401,7 @@ async def generate(
     # Persist the uploaded poster to a temp file the vision stage can read, then remove it.
     poster_path = None
     if poster is not None and poster.filename:
-        data = await poster.read()
+        data = poster.file.read()
         suffix = Path(poster.filename).suffix or ".png"
         fd, poster_path = tempfile.mkstemp(suffix=suffix)
         with os.fdopen(fd, "wb") as f:
