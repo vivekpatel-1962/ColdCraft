@@ -96,6 +96,14 @@ def _llm_guard(fn, *args, **kwargs):
 # ---------- candidate profile ----------
 
 
+@router.get("/quota")
+def get_quota(user_id: str = Depends(get_current_user)):
+    """Today's email-generation quota usage, so the UI can show/disable before a
+    Draft/Send click burns a request that would just 429 anyway."""
+    database.init_db()
+    return database.get_email_quota(user_id, config.DAILY_EMAIL_LIMIT_PER_USER)
+
+
 @router.get("/profile")
 def get_profile(user_id: str = Depends(get_current_user)):
     database.init_db()
@@ -303,6 +311,15 @@ def create_run(req: CreateRunRequest, user_id: str = Depends(get_current_user)):
     if comp_row is None:
         raise HTTPException(404, f"No company profile for '{domain}' — add the company first")
 
+    quota = database.try_consume_email_quota(user_id, config.DAILY_EMAIL_LIMIT_PER_USER)
+    if not quota["allowed"]:
+        raise HTTPException(
+            429,
+            f"Daily limit of {quota['limit']} emails reached — resets at midnight Pacific. "
+            "The Gemini free tier is shared across all users, so this keeps one account "
+            "from using up everyone else's quota.",
+        )
+
     database.link_user_company(user_id, comp_row["company_id"])
     profile = CandidateProfile.model_validate_json(cand_row["profile_json"])
     company = CompanyProfile.model_validate_json(comp_row["profile_json"])
@@ -371,6 +388,15 @@ async def generate(
     if cand_row is None:
         raise HTTPException(404, "No active candidate profile — upload your resume first.")
     profile = CandidateProfile.model_validate_json(cand_row["profile_json"])
+
+    quota = database.try_consume_email_quota(user_id, config.DAILY_EMAIL_LIMIT_PER_USER)
+    if not quota["allowed"]:
+        raise HTTPException(
+            429,
+            f"Daily limit of {quota['limit']} emails reached — resets at midnight Pacific. "
+            "The Gemini free tier is shared across all users, so this keeps one account "
+            "from using up everyone else's quota.",
+        )
 
     # Persist the uploaded poster to a temp file the vision stage can read, then remove it.
     poster_path = None

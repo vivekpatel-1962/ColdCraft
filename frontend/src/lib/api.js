@@ -54,6 +54,10 @@ async function upload(path, formData) {
 export const api = {
   health: () => req('/health'),
 
+  // Today's shared-pool email quota ({ used, limit, remaining, date }) — check before
+  // Draft/Send so the UI can disable the button instead of eating a 429 blind.
+  getQuota: () => req('/api/quota'),
+
   getProfile: () => req('/api/profile'),
   saveProfile: (profile) => req('/api/profile', { method: 'PUT', body: JSON.stringify(profile) }),
   // Onboard / replace the profile from an uploaded resume (+ optional GitHub/LinkedIn).

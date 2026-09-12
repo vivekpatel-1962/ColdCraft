@@ -93,3 +93,10 @@ EXTRACTION_STAGES = {"company_summarizer", "verifier", "resume_analyzer", "poste
 # email/website) poisons everything downstream, so these get the stronger model.
 STRONG_EXTRACTION_STAGES = {"resume_analyzer", "poster_reader"}
 JUDGMENT_STAGES = {"matcher", "planner", "writer"}
+
+# ---- Per-user daily email-generation cap ----
+# Multi-tenant guard: the judgment model is a SHARED pool (20 req/day per Gemini
+# project; each email costs 3 judgment calls — matcher+planner+writer), so with no
+# cap one active user can exhaust the whole platform's daily budget. Resets at
+# midnight Pacific, same as the underlying Gemini quota (see db/database.py).
+DAILY_EMAIL_LIMIT_PER_USER = int(os.getenv("DAILY_EMAIL_LIMIT_PER_USER", "3"))

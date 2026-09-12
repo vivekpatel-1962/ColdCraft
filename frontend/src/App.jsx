@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react'
-import { SignedIn, SignedOut, SignIn, UserButton, useAuth } from '@clerk/clerk-react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { SignedIn, SignedOut, UserButton, useAuth } from '@clerk/clerk-react'
 import { api, setTokenGetter } from './lib/api'
 import Sidebar from './components/Sidebar'
+import Landing from './views/Landing'
 import NewApplication from './views/NewApplication'
 import Runs from './views/Runs'
 import Companies from './views/Companies'
 import Profile from './views/Profile'
-import { IconSun, IconMoon } from './components/icons'
+import { IconSun, IconMoon, IconLogoMark } from './components/icons'
+import useRevealOnScroll from './lib/useRevealOnScroll'
 
 const CLERK_ENABLED = !!import.meta.env.VITE_CLERK_PUBLISHABLE_KEY
 
@@ -32,9 +35,7 @@ export default function App() {
     return (
       <>
         <SignedOut>
-          <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: 24 }}>
-            <SignIn afterSignInUrl="/" />
-          </div>
+          <Landing />
         </SignedOut>
         <SignedIn>
           <TokenBridge />
@@ -70,20 +71,7 @@ function AppInner({ clerkEnabled }) {
     localStorage.setItem('coldmail-theme-btw', theme)
   }, [theme])
 
-  // Scroll-reveal: .reveal elements fade up as they enter the viewport.
-  useEffect(() => {
-    const io = new IntersectionObserver((entries) => {
-      entries.forEach((e) => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target) } })
-    }, { threshold: 0.06, rootMargin: '0px 0px -40px 0px' })
-    const scan = () => document.querySelectorAll('.reveal:not(.in)').forEach((el) => io.observe(el))
-    scan()
-    const mo = new MutationObserver(scan)
-    mo.observe(document.body, { childList: true, subtree: true })
-    const safety = setInterval(() => document.querySelectorAll('.reveal:not(.in)').forEach((el) => {
-      if (el.getBoundingClientRect().top < window.innerHeight) el.classList.add('in')
-    }), 400)
-    return () => { io.disconnect(); mo.disconnect(); clearInterval(safety) }
-  }, [])
+  useRevealOnScroll()
 
   const [title, sub] = TITLES[tab]
 
@@ -94,7 +82,10 @@ function AppInner({ clerkEnabled }) {
         <div className="topbar">
           <div className="topbar-inner">
             <div>
-              <div className="kicker">ColdCraft / {tab}</div>
+              <div className="kicker">
+                <span className="topbar-logo" aria-hidden="true"><IconLogoMark /></span>
+                ColdCraft / {tab}
+              </div>
               <h1>{title}</h1><div className="sub">{sub}</div>
             </div>
             <div className="btn-row" style={{ alignItems: 'center', gap: 10 }}>
@@ -115,12 +106,15 @@ function AppInner({ clerkEnabled }) {
         )}
 
         {online !== false && (
-          <>
-            {tab === 'new' && <NewApplication />}
-            {tab === 'runs' && <Runs />}
-            {tab === 'companies' && <Companies />}
-            {tab === 'profile' && <Profile gmail={gmail} onGmailChange={refreshGmail} />}
-          </>
+          <AnimatePresence mode="wait">
+            <motion.div key={tab} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.18, ease: [0.16, 0.84, 0.34, 1] }}>
+              {tab === 'new' && <NewApplication />}
+              {tab === 'runs' && <Runs />}
+              {tab === 'companies' && <Companies />}
+              {tab === 'profile' && <Profile gmail={gmail} onGmailChange={refreshGmail} />}
+            </motion.div>
+          </AnimatePresence>
         )}
       </div>
     </div>

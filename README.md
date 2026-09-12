@@ -149,11 +149,20 @@ python -m tests.test_send_gate         # every way the send path must refuse
 
 ```
 # terminal 1 — API
-cd backend && .venv\Scripts\python.exe -m uvicorn app.main:app --reload --port 8100
+cd backend && .venv\Scripts\python.exe -m uvicorn app.main:app --reload --port 8110
 
 # terminal 2 — UI
 cd frontend && npm install && npm run dev     # http://localhost:5173
 ```
+
+The backend port is **8110**, not the default 8100 — `frontend/.env.local`
+(`VITE_API_BASE`) and `backend/.env` (`BACKEND_URL`) are already set to 8110
+(8100 is reserved for a separate local project). If you start uvicorn on 8100
+instead, the frontend will call a port nothing is listening on and every
+request will fail. Multi-tenant setup (Clerk auth, MongoDB Atlas, per-user
+Gmail OAuth) is documented in `DEPLOY.md` and `coldmail-knowledge-base.md` §11
+— for pure local dev, leave `CLERK_ISSUER`/`VITE_CLERK_PUBLISHABLE_KEY` unset
+and the app runs as a single local dev user with no sign-in.
 
 Views: **New Application** (paste a URL / email or drop a hiring-poster image →
 one-click Draft or Send), **Profile** (review/correct the claims ledger),

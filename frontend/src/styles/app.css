@@ -13,18 +13,24 @@
   width: 26px; height: 26px; border-radius: var(--r-sm); display: grid; place-items: center;
   background: var(--text); color: var(--bg); flex: none;
 }
+.brand .logo svg { width: 15px; height: 15px; }
 .brand .name { font-weight: 600; font-size: 14.5px; letter-spacing: -.02em; }
 .brand .sub { font-family: var(--mono); font-size: 10px; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
 
 .nav { display: flex; flex-direction: column; gap: 1px; }
 .nav a, .nav button {
-  display: flex; align-items: center; gap: var(--s3); width: 100%;
+  position: relative; display: flex; align-items: center; width: 100%;
   padding: 8px var(--s2); border-radius: var(--r-sm); border: 0; background: none;
   color: var(--text-2); font-size: 13.5px; font-weight: 500; cursor: pointer; text-align: left;
-  transition: background .12s, color .12s;
+  transition: color .12s;
 }
-.nav button:hover { background: var(--surface-2); color: var(--text); }
-.nav button.active { background: var(--surface-2); color: var(--text); font-weight: 600; }
+.nav button:hover { color: var(--text); }
+.nav button.active { color: var(--text); font-weight: 600; }
+/* the active tab's highlight is one shared element that slides between
+   buttons (framer-motion layoutId) instead of popping on/off per button —
+   reads as a considered UI, not a static state swap. */
+.nav-indicator { position: absolute; inset: 0; background: var(--surface-2); border-radius: var(--r-sm); z-index: 0; }
+.nav-content { position: relative; z-index: 1; display: flex; align-items: center; gap: var(--s3); }
 .nav svg { width: 16px; height: 16px; flex: none; opacity: .85; }
 .nav .spacer { flex: 1; }
 
@@ -54,6 +60,7 @@
   max-width: 960px; margin: 0 auto; padding: var(--s4) var(--s8);
 }
 .topbar .kicker { font-family: var(--mono); font-size: 11px; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); margin-bottom: 3px; }
+.topbar-logo { display: none; }
 .topbar h1 { margin: 0; font-size: 18px; font-weight: 600; letter-spacing: -.02em; }
 .topbar .sub { color: var(--muted); font-size: 12.5px; margin-top: 2px; }
 .page { padding: var(--s8); max-width: 960px; margin: 0 auto; }
@@ -69,7 +76,7 @@
 }
 .page-hero .card { padding: var(--s8); }
 .page-hero h2 { font-size: 23px; }
-.page-hero .card > p { font-size: 14.5px; line-height: 1.65; max-width: 60ch; }
+.intro-copy { font-size: 14.5px; line-height: 1.65; max-width: 60ch; }
 .page-hero .intake-modes { gap: var(--s4); margin-top: var(--s5); }
 .page-hero .mode-btn { padding: var(--s5); }
 .page-hero .mode-btn svg { width: 22px; height: 22px; margin-bottom: 10px; }
@@ -108,7 +115,7 @@ p { margin: 4px 0; }
   display: inline-flex; align-items: center; gap: 7px; justify-content: center;
   background: var(--surface); color: var(--text); border: 1px solid var(--border);
   border-radius: var(--r-md); padding: 8px 14px; font: inherit; font-size: 13px; font-weight: 500;
-  letter-spacing: -.005em;
+  letter-spacing: -.005em; text-decoration: none;
   cursor: pointer; transition: background .12s, border-color .12s, color .12s, transform .08s; white-space: nowrap;
 }
 .btn:hover:not(:disabled) { background: var(--surface-2); border-color: var(--text-2); }
@@ -160,9 +167,37 @@ textarea { resize: vertical; line-height: 1.6; }
 table { width: 100%; border-collapse: collapse; font-size: 13px; }
 th { text-align: left; padding: 9px 12px; color: var(--muted); font-weight: 600; font-size: 10.5px;
   font-family: var(--mono); text-transform: uppercase; letter-spacing: .05em; border-bottom: 1px solid var(--border); }
-td { padding: 11px 12px; border-bottom: 1px solid var(--border-2); }
+td { padding: 11px 12px; border-bottom: 1px solid var(--border-2); word-break: break-word; }
 tbody tr { transition: background .1s; }
 tbody tr:hover { background: var(--surface-2); }
+.row-click { cursor: pointer; }
+.row-click:active { background: var(--surface-2); }
+
+/* fixed layout + explicit column widths so the table can never grow wider
+   than its card — the alternative (table-layout:auto) let a long subject
+   line force the whole table past the container, which is what put a
+   permanent horizontal scrollbar under every runs/companies list. Long text
+   now wraps inside its own column instead of pushing the table wider. */
+.runs-table, .companies-table { table-layout: fixed; }
+/* fixed-width cells don't grow for content the way auto-layout does, so
+   anything meant to stay on one line (badges, numbers, the chevron) needs
+   white-space:nowrap explicitly or it wraps mid-word inside its column. */
+.runs-table td:nth-child(1), .runs-table td:nth-child(3), .runs-table td:nth-child(5),
+.companies-table td:nth-child(3), .companies-table td:nth-child(4), .row-chevron {
+  white-space: nowrap;
+}
+.runs-table th:nth-child(1), .runs-table td:nth-child(1) { width: 40px; }
+.runs-table th:nth-child(2), .runs-table td:nth-child(2) { width: 18%; }
+.runs-table th:nth-child(3), .runs-table td:nth-child(3) { width: 120px; }
+.runs-table th:nth-child(5), .runs-table td:nth-child(5) { width: 76px; }
+.runs-table th:nth-child(6), .runs-table td:nth-child(6) { width: 24px; }
+
+.companies-table th:nth-child(1), .companies-table td:nth-child(1) { width: 30%; }
+.companies-table th:nth-child(3), .companies-table td:nth-child(3) { width: 90px; }
+.companies-table th:nth-child(4), .companies-table td:nth-child(4) { width: 140px; }
+.companies-table th:nth-child(5), .companies-table td:nth-child(5) { width: 24px; }
+.row-chevron { color: var(--muted); text-align: right; width: 20px; }
+.row-click:hover .row-chevron { color: var(--text); }
 
 /* ---------- banners ---------- */
 .banner { padding: 11px 14px; border-radius: var(--r-md); font-size: 13px; margin: var(--s3) 0; border: 1px solid; }
@@ -240,11 +275,15 @@ tbody tr:hover { background: var(--surface-2); }
 /* ---------- intake (hero) ---------- */
 .intake-modes { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s3); margin-bottom: var(--s5); }
 .mode-btn {
-  border: 1px solid var(--border); background: var(--surface); border-radius: var(--r-md);
-  padding: var(--s4); cursor: pointer; text-align: left; transition: border-color .12s, background .12s;
+  position: relative; border: 1px solid var(--border); background: var(--surface); border-radius: var(--r-md);
+  padding: var(--s4); cursor: pointer; text-align: left; transition: border-color .12s; overflow: hidden;
 }
 .mode-btn:hover { border-color: var(--text-2); }
-.mode-btn.active { border-color: var(--text); background: var(--brand-50); }
+.mode-btn.active { border-color: var(--text); }
+/* the selected mode's tint is one shared element that slides between cards
+   (framer-motion layoutId) rather than three independent background toggles. */
+.mode-btn-indicator { position: absolute; inset: 0; background: var(--brand-50); z-index: 0; }
+.mode-btn-content { position: relative; z-index: 1; display: block; }
 .mode-btn svg { width: 18px; height: 18px; color: var(--text-2); margin-bottom: 8px; }
 .mode-btn.active svg { color: var(--text); }
 .mode-btn .t { font-weight: 600; font-size: 13px; }
@@ -259,6 +298,7 @@ tbody tr:hover { background: var(--surface-2); }
 .dropzone:hover, .dropzone.drag { border-color: var(--text); color: var(--text); background: var(--brand-50); }
 .dropzone svg { width: 28px; height: 28px; flex: none; opacity: .7; }
 .dropzone p { max-width: 320px; font-size: 13px; margin: 0; }
+.dropzone-mobile { display: none; }
 .dropzone img { max-height: 220px; max-width: 100%; object-fit: contain; border-radius: var(--r-sm); box-shadow: var(--shadow-md); }
 .pipeline-steps { display: flex; gap: 0; flex-wrap: wrap; margin-top: var(--s5); padding-top: var(--s4); border-top: 1px solid var(--border-2); }
 .pipeline-steps .step { font-family: var(--mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: .04em;
@@ -305,9 +345,314 @@ tbody tr { animation: fadeIn .22s ease both; }
 }
 
 @media (max-width: 780px) {
-  .shell { grid-template-columns: 1fr; }
-  .sidebar { position: static; height: auto; flex-direction: row; align-items: center; overflow-x: auto; }
-  .sidebar .brand { padding: 0 var(--s3) 0 0; } .nav { flex-direction: row; }
+  /* the manual resize handle on a <textarea> renders as a full-width drag bar
+     on mobile (not the small corner grip desktop shows) — dragging it with a
+     thumb isn't useful anyway, so just turn it off there. */
+  textarea { resize: none; }
+  /* .shell is a 2-column CSS Grid on desktop (sidebar | main, one row). At a
+     single column, the same 2 children become 2 grid ROWS instead — and with
+     grid-auto-rows:auto plus min-height:100% on the container, that produced
+     a real bug found while testing: the leftover viewport height got dumped
+     into the sidebar's auto row, stretching it to ~320px with its content
+     centered in the middle of a huge blank box. Plain flex-column sidesteps
+     the whole auto-row-sizing question — sizes purely by content, as intended. */
+  .shell { display: flex; flex-direction: column; padding-bottom: calc(58px + env(safe-area-inset-bottom)); }
+  /* a fixed bottom tab bar, not a horizontally-scrolling top strip — every
+     destination is visible and reachable with a thumb at all times, the same
+     pattern every native app already trained people on. A scrollable top nav
+     hid 2 of 4 tabs with no affordance that more existed; real feedback from
+     testing on an actual phone. */
+  .sidebar {
+    position: fixed; left: 0; right: 0; bottom: 0; top: auto; z-index: 50; height: auto; width: 100%;
+    flex-direction: row; align-items: stretch; gap: 0;
+    padding: 4px var(--s2) calc(4px + env(safe-area-inset-bottom));
+    border-right: none; border-top: 1px solid var(--border);
+    box-shadow: 0 -1px 12px rgba(0,0,0,.06);
+  }
+  .sidebar .brand { display: none; }
+  .nav { flex-direction: row; flex: 1; gap: 0; }
+  .nav button { flex: 1; padding: 6px 2px; font-size: 10.5px; text-align: center; min-height: 48px; }
+  .nav-content { flex-direction: column; justify-content: center; gap: 3px; }
+  .nav-indicator { border-radius: var(--r-md); inset: 2px; }
+  .nav button svg { width: 20px; height: 20px; opacity: 1; }
+  .nav button.active svg { color: var(--text); }
   .sidebar .status-chip { display: none; }
   .page, .topbar { padding: var(--s5); } .intake-modes { grid-template-columns: 1fr; }
+  .topbar-inner .kicker { display: flex; align-items: center; gap: 6px; }
+  .topbar-logo { width: 16px; height: 16px; border-radius: 4px; background: var(--text); color: var(--bg);
+    display: grid; place-items: center; flex: none; }
+  .topbar-logo svg { width: 10px; height: 10px; }
+  /* the intro paragraph ate most of the first screen before the actual form —
+     clamp it so the mode cards (the actual next action) show without scrolling */
+  .intro-copy {
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .page-hero { min-height: 0; }
+  .page-hero .card { padding: var(--s5); }
+  .dropzone-desktop { display: none; }
+  .dropzone-mobile { display: block; }
+  .page-hero .dropzone { padding: var(--s6); min-height: 160px; }
+  /* the intake hero was tuned for a spacious desktop moment — full desktop
+     padding/font-sizes on a 375px phone just reads as everything being too
+     big, not "roomy". Scale the whole hero down to native-app density. */
+  .page-hero h2 { font-size: 19px; }
+  .page-hero .intake-modes { gap: var(--s3); margin-top: var(--s4); }
+  .page-hero .mode-btn { padding: 14px; }
+  .page-hero .mode-btn svg { width: 18px; height: 18px; margin-bottom: 6px; }
+  .page-hero .mode-btn .t { font-size: 13.5px; }
+  .page-hero .mode-btn .d { font-size: 11.5px; }
+  .page-hero input { padding: 10px 12px; font-size: 14px; }
+  .page-hero .btn.lg { padding: 11px 18px !important; font-size: 14px; margin-top: var(--s4) !important; }
+  .page-hero .card > p, .intro-copy { margin-bottom: 14px !important; }
+
+  /* same "desktop density everywhere" issue outside the hero too — cards,
+     buttons and inputs all used their full desktop padding on mobile. */
+  .card { padding: var(--s5); }
+  .card.pad-sm { padding: var(--s3); }
+  h2 { font-size: 15.5px; }
+  h3 { font-size: 13.5px; }
+  .btn { padding: 7px 12px; font-size: 12.5px; }
+  .btn.lg { padding: 10px 16px; font-size: 13.5px; }
+  input, textarea, select { padding: 8px 10px; font-size: 13px; }
+  label.field { font-size: 11.5px; }
+}
+
+@media (max-width: 480px) {
+  .topbar-inner { padding: var(--s4); }
+  .topbar h1 { font-size: 16px; }
+  .topbar .sub { display: none; }
+  .page { padding: var(--s4); }
+
+  /* the fixed desktop column budget (Status 120px + Replied 76px + # 40px +
+     chevron 24px = 260px) leaves almost nothing for Company/Subject once the
+     viewport itself is only ~340px wide — that's what forced "AI/ML Engineer
+     Application" and "NextAstra" to wrap letter by letter. Drop the least
+     useful columns instead of shrinking everything to the point of breaking. */
+  .runs-table th:nth-child(1), .runs-table td:nth-child(1),
+  .runs-table th:nth-child(5), .runs-table td:nth-child(5) { display: none; }
+  .runs-table th:nth-child(2), .runs-table td:nth-child(2) { width: 34%; }
+  .runs-table th:nth-child(3), .runs-table td:nth-child(3) { width: 84px; }
+  .runs-table th:nth-child(6), .runs-table td:nth-child(6) { width: 18px; }
+
+  .companies-table th:nth-child(4), .companies-table td:nth-child(4) { display: none; }
+  .companies-table th:nth-child(1), .companies-table td:nth-child(1) { width: 40%; }
+  .companies-table th:nth-child(3), .companies-table td:nth-child(3) { width: 70px; }
+  .companies-table th:nth-child(5), .companies-table td:nth-child(5) { width: 18px; }
+
+  .runs-table th, .runs-table td, .companies-table th, .companies-table td { padding: 9px 8px; }
+  .badge { font-size: 9.5px; padding: 2px 6px 2px 5px; }
+}
+
+/* ================================================================
+   Landing page (signed-out marketing page)
+   ================================================================ */
+.landing { position: relative; min-height: 100dvh; overflow-x: clip; }
+
+/* decorative background: two soft blurred orbs + a fading dot grid — texture
+   without breaking the strict monochrome palette (grayscale + brand hue only) */
+.landing-bg { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
+.landing-bg .orb {
+  position: absolute; border-radius: 50%; filter: blur(90px);
+  background: radial-gradient(circle, var(--brand-300) 0%, transparent 70%); opacity: .16;
+}
+.landing-bg .orb-a { width: 520px; height: 520px; top: -180px; left: -120px; }
+.landing-bg .orb-b { width: 460px; height: 460px; top: 220px; right: -160px; opacity: .12; }
+.landing-bg .grid-fade {
+  position: absolute; inset: 0;
+  background-image: radial-gradient(color-mix(in oklch, var(--text) 18%, transparent) 1px, transparent 1px);
+  background-size: 28px 28px;
+  mask-image: radial-gradient(ellipse 60% 45% at 50% 0%, black 0%, transparent 75%);
+  opacity: .5;
+}
+
+.landing > * { position: relative; z-index: 1; }
+
+.landing-nav { position: sticky; top: 0; z-index: 20; backdrop-filter: blur(10px);
+  background: color-mix(in oklch, var(--bg) 80%, transparent); border-bottom: 1px solid var(--border-2); }
+.landing-nav-inner { max-width: 1120px; margin: 0 auto; padding: 16px var(--s6);
+  display: flex; align-items: center; justify-content: space-between; }
+.landing .brand { display: flex; align-items: center; gap: 10px; }
+.landing .brand .logo { width: 28px; height: 28px; border-radius: var(--r-sm); display: grid; place-items: center;
+  background: var(--text); color: var(--bg); font-family: var(--mono); font-size: 11px; font-weight: 700; flex: none; }
+.landing .brand .name { font-weight: 600; font-size: 15px; letter-spacing: -.02em; }
+
+.landing main { max-width: 1120px; margin: 0 auto; padding: 0 var(--s6); }
+
+.kicker-badge {
+  display: inline-flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 11px;
+  font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--text-2);
+  border: 1px solid var(--border); background: var(--surface); border-radius: var(--r-full);
+  padding: 5px 12px 5px 10px;
+}
+.kicker-badge::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--ok); flex: none; }
+.kicker-badge.center { display: flex; justify-content: center; width: fit-content; margin: 0 auto 14px; }
+
+.hero { position: relative; display: grid; grid-template-columns: 1.05fr 0.95fr; gap: var(--s8);
+  align-items: center; padding: 76px 0 88px; }
+.hero-copy { position: relative; z-index: 1; }
+.hero-copy h1 { font-size: clamp(32px, 4.4vw, 52px); line-height: 1.08; letter-spacing: -.03em;
+  font-weight: 700; margin: 18px 0 16px; }
+.hero-sub { font-size: 16px; line-height: 1.65; color: var(--text-2); max-width: 46ch; margin: 0 0 26px; }
+.hero-actions { display: flex; gap: var(--s3); flex-wrap: wrap; }
+.hero-actions .btn.lg { padding: 12px 22px; }
+.trust-row { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 30px; }
+.trust-chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--text-2); }
+.trust-chip svg { width: 14px; height: 14px; color: var(--ok); flex: none; }
+
+/* a receding "floor" grid behind the hero for depth — perspective-tilted lines
+   fading out via a radial mask, the classic AI/SaaS hero treatment, kept in
+   strict grayscale so it reads as texture, not decoration */
+.hero-grid-3d {
+  position: absolute; z-index: 0; left: 50%; top: -6%; width: 145%; height: 440px;
+  transform: translateX(-50%) perspective(700px) rotateX(62deg);
+  transform-origin: top center;
+  background-image:
+    linear-gradient(color-mix(in oklch, var(--text) 20%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in oklch, var(--text) 20%, transparent) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: radial-gradient(ellipse 62% 95% at 50% 0%, black 0%, black 25%, transparent 82%);
+  -webkit-mask-image: radial-gradient(ellipse 62% 95% at 50% 0%, black 0%, black 25%, transparent 82%);
+  opacity: .8;
+  pointer-events: none;
+}
+
+.hero-visual { position: relative; z-index: 1; }
+.mock-email { transform: rotate(-1.2deg); box-shadow: var(--shadow-lg); }
+.mock-email .body { font-size: 13px; }
+.mock-float {
+  position: absolute; display: flex; align-items: center; gap: 10px; background: var(--surface);
+  border: 1px solid var(--border); border-radius: var(--r-lg); padding: 10px 14px; box-shadow: var(--shadow-lg);
+}
+.fit-float { left: -28px; bottom: -22px; }
+.verdict-float { right: -14px; top: -18px; padding: 8px 14px; }
+
+.feature-grid-wrap { padding: 40px 0 20px; }
+.feature-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--s4); }
+.feature-card { margin-bottom: 0; }
+.feature-icon { width: 36px; height: 36px; border-radius: var(--r-md); background: var(--surface-2);
+  display: grid; place-items: center; margin-bottom: var(--s3); }
+.feature-icon svg { width: 18px; height: 18px; }
+.feature-card h3 { margin-bottom: 6px; }
+
+.how-section { padding: 88px 0; text-align: center; }
+.section-title { font-size: clamp(22px, 2.6vw, 30px); font-weight: 700; letter-spacing: -.02em; margin: 0 0 44px; }
+.section-sub { color: var(--text-2); font-size: 15px; margin: -34px 0 40px; }
+
+/* ---------- contrast: generic AI vs ColdCraft, side by side ---------- */
+.contrast { padding: 88px 0 20px; text-align: center; }
+.contrast-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s5); max-width: 900px;
+  margin: 0 auto; text-align: left; }
+.contrast-card { border-radius: var(--r-lg); border: 1px solid var(--border); padding: var(--s5); background: var(--surface); }
+.contrast-card.bad { opacity: .82; }
+.contrast-card.good { border-color: color-mix(in oklch, var(--ok) 35%, var(--border)); }
+.contrast-tag { display: inline-block; font-family: var(--mono); font-size: 10.5px; text-transform: uppercase;
+  letter-spacing: .05em; font-weight: 700; color: var(--muted); margin-bottom: 12px; }
+.contrast-card.good .contrast-tag { color: var(--ok); }
+.contrast-body { font-size: 13.5px; line-height: 1.65; color: var(--text-2); font-style: italic; margin: 0 0 16px; }
+.contrast-verdict { font-size: 12.5px; font-weight: 600; margin: 0; color: var(--bad); }
+.contrast-verdict.good { color: var(--ok); }
+
+/* ---------- grounding deep-dive ---------- */
+.grounding { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s8); align-items: center; padding: 40px 0 88px; }
+.ground-facts { display: flex; flex-direction: column; gap: 10px; }
+.ground-fact { display: flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 500; }
+.ground-fact svg { width: 15px; height: 15px; color: var(--ok); flex: none; }
+.ground-visual { background: var(--surface-2); }
+.ground-line { font-size: 13.5px; line-height: 1.7; margin: 0 0 14px; color: var(--text-2); }
+.ground-line:last-child { margin-bottom: 0; }
+.ground-line .id { color: var(--text); margin: 0 0 0 4px; }
+
+/* a real connected flow, not just spaced-out circles: an SVG track with
+   directional arrowheads runs through every icon's center, plus a small dot
+   animating along it — reads as a live pipeline graph, not decoration */
+.how-steps { position: relative; display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--s4);
+  max-width: 880px; margin: 0 auto; }
+.how-track {
+  position: absolute; left: 12.5%; right: 12.5%; top: 14px; height: 16px; z-index: 0; overflow: visible;
+}
+.how-step { text-align: center; position: relative; z-index: 1; }
+.how-step-icon {
+  position: relative; width: 44px; height: 44px; margin: 0 auto 14px; border-radius: 50%;
+  border: 1px solid var(--border); background: var(--surface); display: grid; place-items: center;
+}
+.how-step-icon svg { width: 19px; height: 19px; }
+.how-step-num {
+  position: absolute; top: -6px; right: -6px; width: 18px; height: 18px; border-radius: 50%;
+  background: var(--text); color: var(--bg); font-family: var(--mono); font-size: 10px; font-weight: 700;
+  display: grid; place-items: center; line-height: 1;
+}
+.how-step-label { font-weight: 600; font-size: 13.5px; margin-bottom: 4px; }
+
+/* ---------- comparison table ---------- */
+.compare-section { padding: 40px 0 88px; text-align: center; }
+.compare-table-wrap { max-width: 720px; margin: 0 auto; overflow-x: auto; border: 1px solid var(--border);
+  border-radius: var(--r-lg); }
+.compare-table { font-size: 13.5px; }
+.compare-table th { background: var(--surface-2); }
+.compare-table th:first-child { width: 30%; }
+.compare-table th:not(:first-child), .compare-table td:not(:first-child) { text-align: left; }
+.compare-label { font-weight: 600; color: var(--text-2); }
+.compare-good { color: var(--text); }
+.compare-good svg { width: 13px; height: 13px; color: var(--ok); margin-right: 6px; vertical-align: -1px; }
+.compare-bad { color: var(--muted); }
+.compare-table tr:last-child td { border-bottom: none; }
+
+/* ---------- FAQ ---------- */
+.faq-section { padding: 20px 0 88px; text-align: center; }
+.faq-list { max-width: 680px; margin: 0 auto; text-align: left; border-top: 1px solid var(--border-2); }
+.faq-item { border-bottom: 1px solid var(--border-2); padding: 18px 0; }
+.faq-q {
+  cursor: pointer; width: 100%; background: none; border: 0; padding: 0; margin: 0;
+  font: inherit; font-weight: 600; font-size: 14.5px; color: var(--text); text-align: left;
+  display: flex; align-items: center; justify-content: space-between; gap: var(--s3);
+}
+.faq-plus { font-family: var(--mono); font-size: 18px; color: var(--muted); flex: none; line-height: 1; }
+.faq-a-wrap { overflow: hidden; }
+.faq-a-wrap p { margin: 12px 0 0; font-size: 13.5px; line-height: 1.65; }
+
+.cta-band { text-align: center; padding: 64px var(--s6) 96px; }
+
+.landing-footer { border-top: 1px solid var(--border-2); padding: 28px var(--s6) 40px; max-width: 1120px;
+  margin: 0 auto; display: flex; align-items: center; justify-content: space-between; gap: var(--s3); flex-wrap: wrap; }
+
+@media (max-width: 880px) {
+  .hero { grid-template-columns: 1fr; padding: 48px 0 60px; text-align: left; }
+  .hero-visual { order: -1; max-width: 420px; margin: 0 auto 12px; }
+  .mock-float { display: none; }
+  .hero-grid-3d { height: 280px; opacity: .5; }
+  .feature-grid { grid-template-columns: repeat(2, 1fr); }
+  .how-steps { grid-template-columns: repeat(2, 1fr); row-gap: var(--s8); }
+  .how-track { display: none; }
+  .contrast-grid { grid-template-columns: 1fr; }
+  .grounding { grid-template-columns: 1fr; gap: var(--s6); }
+  .ground-visual { order: -1; }
+}
+
+@media (max-width: 560px) {
+  .landing-nav-inner { padding: 12px var(--s4); flex-wrap: nowrap; }
+  .landing-nav .btn-row { gap: 6px; }
+  /* nav has no room for three actions at this width — the sign-up modal's own
+     "Already have an account? Sign in" link covers the sign-in path */
+  .landing-nav .btn-row > :not(.theme-toggle):not(.btn-row-cta) { display: none; }
+  .landing .brand .name { font-size: 14px; }
+  .landing-nav .btn.primary { padding: 8px 12px; font-size: 12.5px; }
+  .landing main { padding: 0 var(--s4); }
+  .feature-grid { grid-template-columns: 1fr; }
+  /* vertical timeline: icon + dashed connector on the left, copy to the right */
+  .how-steps { grid-template-columns: 1fr; row-gap: var(--s6); max-width: 340px; }
+  .how-step { display: flex; align-items: flex-start; gap: var(--s4); text-align: left; }
+  .how-step-icon { margin: 0; flex: none; }
+  .how-step:not(:last-child)::after {
+    content: ''; position: absolute; left: 21px; top: 44px; height: calc(100% + var(--s6) - 44px);
+    border-left: 1.5px dashed var(--border-2);
+  }
+  .hero-actions .btn.lg { flex: 1 1 auto; padding: 12px 16px; font-size: 13.5px; }
+  .hero-copy h1 { letter-spacing: -.02em; }
+  .contrast { padding: 60px 0 10px; }
+  .section-sub { margin-top: -24px; }
+  .grounding { padding: 30px 0 60px; }
+  .compare-section, .faq-section { padding-left: 0; padding-right: 0; }
+  .compare-table { font-size: 12.5px; }
+  .cta-band { padding: 48px var(--s4) 72px; }
+  .landing-footer { flex-direction: column; align-items: flex-start; }
 }

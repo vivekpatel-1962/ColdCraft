@@ -125,9 +125,14 @@ No persistent disk is required (data is in Atlas), so any container/PaaS host wo
 
 ## 7. Known limits (by design, not bugs)
 
-- **Gemini free tier is ~20 requests/day per key, shared across all users.** For more
-  than light use, give each Google project its own key (`GEMINI_API_KEYS`), or add a
-  per-user key later.
+- **Gemini free tier is ~20 requests/day per key, shared across all users, and each
+  email costs 3 of those (matcher+planner+writer).** With the 4 keys in `.env` that's
+  ~26 emails/day across the *whole platform*. `DAILY_EMAIL_LIMIT_PER_USER` (default 3,
+  see `.env.example`) caps generations per user per day so one account can't burn the
+  shared pool for everyone else — enforced server-side in `POST /api/runs` and
+  `POST /api/generate`, surfaced to the UI via `GET /api/quota`. For more than light
+  multi-user use, add more keys/projects, raise the cap, or add a per-user
+  bring-your-own-key option later.
 - **Google caps unverified OAuth apps at ~100 test users** until you submit for
   verification — fine for launch, a form to fill later.
 - **Nothing is ever auto-sent.** Generating and sending are separate; a send always
